@@ -74,6 +74,7 @@ kbd {
   outline: none;
 }
 .search input:focus { border-color: var(--accent); }
+.search button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); font-weight: 600; }
 .search button { background: var(--accent); color: #0b1a10; border: 0; font-weight: 700; padding: 0 22px; border-radius: 10px; }
 
 .status { color: var(--muted); font-size: 14px; margin: 10px 2px 18px; }
