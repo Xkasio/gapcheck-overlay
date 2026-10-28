@@ -103,6 +103,8 @@ function createOverlay(part) {
     resizable: false,
     hasShadow: false,
     skipTaskbar: true,
+    // Windows: 도구 창(WS_EX_TOOLWINDOW)으로 만들어 Alt+Tab 목록에 안 보이게
+    type: process.platform === "win32" ? "toolbar" : undefined,
     focusable: false,
     alwaysOnTop: onTop(),
     show: false,
