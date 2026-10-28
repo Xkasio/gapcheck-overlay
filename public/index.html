@@ -58,21 +58,9 @@
         </div>
 
         <div class="controls">
-          <label>카운트다운
-            <select id="countdown">
-              <option value="0">없음</option>
-              <option value="3">3초</option>
-              <option value="5">5초</option>
-              <option value="10">10초</option>
-            </select>
-          </label>
           <button id="start" class="primary">▶ 시작</button>
           <button id="stop">■ 정지</button>
-        </div>
-        <label class="range">채팅 크기 <input type="range" id="scale" min="1" max="4" step="0.25"><output id="scale-out"></output></label>
-        <div class="controls app-only" hidden>
-          <button id="fullscreen">⛶ 마인크래프트 전체화면 <kbd data-key="fullscreen">F6</kbd></button>
-          <button id="edit-overlay">✥ 오버레이 위치 <kbd data-key="editOverlay">F7</kbd></button>
+          <button id="open-settings" class="icon" title="설정">⚙ 설정</button>
         </div>
         <p class="hint browser-only">
           브라우저로 열린 상태입니다. 게임 위에 뜨는 투명 오버레이와 단축키는 GapCheck Overlay 앱에서 사용할 수 있습니다.
@@ -106,6 +94,25 @@
   </main>
 
   <footer class="foot">비공식 팬 메이드 도구입니다.</footer>
+
+  <dialog id="settings" class="settings">
+    <form method="dialog">
+      <h2>설정</h2>
+      <label class="row">카운트다운
+        <select id="countdown">
+          <option value="0">없음</option>
+          <option value="3">3초</option>
+          <option value="5">5초</option>
+          <option value="10">10초</option>
+        </select>
+      </label>
+      <label class="range">채팅 크기 <input type="range" id="scale" min="1" max="4" step="0.25"><output id="scale-out"></output></label>
+      <label class="range">배경 투명도 <input type="range" id="bg-opacity" min="0" max="1" step="0.05"><output id="bg-opacity-out"></output></label>
+      <label class="range">매치 로그 투명도 <input type="range" id="chat-opacity" min="0.2" max="1" step="0.05"><output id="chat-opacity-out"></output></label>
+      <button type="button" id="edit-overlay" class="wide app-only" hidden>✥ 오버레이 위치 옮기기 <kbd data-key="editOverlay">F7</kbd></button>
+      <div class="settings-foot"><button value="close" class="primary">닫기</button></div>
+    </form>
+  </dialog>
 
   <script type="module" src="app.js"></script>
 </body>
