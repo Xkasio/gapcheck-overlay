@@ -85,6 +85,26 @@ export function buildStages(match, uuid) {
   return [...first].map(([idx, ms]) => [ms, idx]).sort((a, b) => a[0] - b[0]);
 }
 
+/**
+ * 설정 창을 연 동안 보여 줄 예시 상태: 현황 줄 + 발전 과제 몇 줄(타임라인 시각, 내 기록 차이 포함).
+ * 채팅 크기·투명도·표시 옵션은 지금 설정 그대로 쓴다. 시작 시각을 고정해 줄이 계속 다시 그려지지 않게 한다.
+ */
+let previewStart = 0;
+export function previewState(state) {
+  if (!previewStart) previewStart = Date.now() - 75000;
+  return {
+    ...state,
+    startedAt: previewStart,
+    countdown: 0,
+    keepChat: true,
+    showAdvancements: true,
+    player: state?.player ?? { nickname: "Steve", rank: 1 },
+    events: [[25800, "story.smelt_iron"], [26300, "story.mine_stone"], [63000, "story.iron_tools"], [72500, "story.lava_bucket"]],
+    stages: [[0, 0], [60000, 1], [70000, 2]],
+    mine: [[31000, "story.smelt_iron"], [58000, "story.iron_tools"]],
+  };
+}
+
 /** 서버 상태 구독. 끊기면 EventSource가 알아서 다시 연결한다. */
 export function subscribeState(onState) {
   const es = new EventSource("/api/state/stream");
