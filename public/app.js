@@ -92,6 +92,7 @@ function showMatch(m, message) {
   applySelection(same);
 }
 
+$("#open-replays").addEventListener("click", () => appAction("openReplayFolder"));
 $("#browse-replay").addEventListener("click", async () => {
   const r = await appAction("browseReplay");
   if (r.ok && r.path) openReplay(r.path);
