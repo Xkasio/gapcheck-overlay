@@ -1,0 +1,63 @@
+{
+  "name": "gapcheck-overlay",
+  "version": "1.0.1",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server.js",
+    "dist": "electron-builder --win nsis portable"
+  },
+  "dependencies": {
+    "koffi": "2.16.3"
+  },
+  "devDependencies": {
+    "electron": "38.8.6",
+    "electron-builder": "25.1.8"
+  },
+  "productName": "GapCheck Overlay",
+  "description": "gapcheck.gg 매치 타임라인을 마인크래프트 채팅처럼 게임 위에 띄워 주는 비공식 오버레이",
+  "author": "cksgh111",
+  "build": {
+    "appId": "gg.gapcheck.overlay.unofficial",
+    "productName": "GapCheck Overlay",
+    "directories": {
+      "output": "dist/${version}"
+    },
+    "files": [
+      "main.js",
+      "server.js",
+      "mcwindow.js",
+      "public/**/*",
+      "build/icon.png",
+      "package.json",
+      "!node_modules/koffi/{src,vendor,doc}/**",
+      "!node_modules/koffi/build/koffi/{darwin,freebsd,linux,musl,openbsd}_*/**",
+      "!node_modules/koffi/build/koffi/win32_{arm64,ia32}/**"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/build/**"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cksgh111/gapcheck-overlay.git"
+  },
+  "homepage": "https://github.com/cksgh111/gapcheck-overlay"
+}
