@@ -1,6 +1,6 @@
 import {
   BASTION, BASTION_TYPES, ChatView, SEED_TYPES, StatusView, buildEvents, buildStages, eventKind, eventName,
-  fetchMatch, fmt, parseId, postJson, subscribeState, winnerUuid,
+  fetchMatch, fmt, parseId, postJson, previewState, subscribeState, winnerUuid,
 } from "./shared.js";
 
 const $ = (s) => document.querySelector(s);
@@ -11,6 +11,8 @@ let playerUuid = null;
 let state = null; // 서버가 보내주는 공유 상태
 const previewStatus = new StatusView($("#preview-status"), 0.5);
 const previewChat = new ChatView($("#preview-chat"), 0.5);
+const settingsStatus = new StatusView($("#set-status"), 0.5);
+const settingsChat = new ChatView($("#set-chat"), 0.5);
 
 // ---------- 서버 상태 ----------
 let first = true;
@@ -163,7 +165,12 @@ $("#countdown").addEventListener("change", (e) => postJson("/api/state", { count
 $("#scale").addEventListener("input", (e) => postJson("/api/state", { scale: Number(e.target.value) }));
 $("#bg-opacity").addEventListener("input", (e) => postJson("/api/state", { bgOpacity: Number(e.target.value) }));
 $("#chat-opacity").addEventListener("input", (e) => postJson("/api/state", { chatOpacity: Number(e.target.value) }));
-$("#open-settings").addEventListener("click", () => $("#settings").showModal());
+// 설정 창: 여는 동안 오버레이에 예시 표시, 닫으면(닫기 버튼·Esc) 원래대로
+$("#open-settings").addEventListener("click", () => {
+  $("#settings").showModal();
+  postJson("/api/state", { preview: true });
+});
+$("#settings").addEventListener("close", () => postJson("/api/state", { preview: false }));
 $("#show-adv").addEventListener("change", (e) => postJson("/api/state", { showAdvancements: e.target.checked }));
 $("#keep-chat").addEventListener("change", (e) => postJson("/api/state", { keepChat: e.target.checked }));
 $("#show-times").addEventListener("change", (e) => postJson("/api/state", { showTimes: e.target.checked }));
@@ -364,6 +371,11 @@ function tick() {
   const now = Date.now();
   previewStatus.render(state, now);
   previewChat.render(state, now);
+  if ($("#settings").open) {
+    const sample = previewState(state);
+    settingsStatus.render(sample, now);
+    settingsChat.render(sample, now);
+  }
   const running = state?.startedAt != null;
   const t = running ? now - state.startedAt : 0;
   $("#start").textContent = running ? "↻ 재시작" : "▶ 시작";
