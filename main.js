@@ -289,6 +289,17 @@ async function init() {
     });
     return r.canceled ? { ok: true } : { ok: true, path: r.filePaths[0] };
   };
+  // 리플레이 파일 고르기. 리플레이 폴더가 없으면 만들고 거기서 시작
+  server.hooks.browseReplay = async () => {
+    fs.mkdirSync(server.REPLAYS, { recursive: true });
+    const r = await dialog.showOpenDialog(controlWin, {
+      title: "리플레이 파일 선택 (.rrf)",
+      defaultPath: server.REPLAYS,
+      filters: [{ name: "MCSR Ranked 리플레이", extensions: ["rrf", "zip"] }],
+      properties: ["openFile"],
+    });
+    return r.canceled ? { ok: true } : { ok: true, path: r.filePaths[0] };
+  };
   server.hooks.installUpdate = () => {
     if (update.status === "downloading") {
       update = { ...update, installing: true }; // 다 받으면 update-downloaded 에서 설치
@@ -301,6 +312,7 @@ async function init() {
     return { ok: true };
   };
 
+  fs.mkdirSync(server.REPLAYS, { recursive: true });
   createOverlay("status");
   createOverlay("chat");
   let lastOnTop = onTop();
