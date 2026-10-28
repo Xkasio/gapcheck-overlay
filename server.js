@@ -40,7 +40,7 @@ let state = {
   showAdvancements: true, keepChat: false, showTimes: true, showDelta: true, autoStart: true, alwaysOnTop: true, bgOpacity: 0.5, chatOpacity: 1, logPath: "", log: null, mine: [],
 };
 try {
-  state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null, mine: [], log: null };
+  state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null, mine: [], log: null, preview: false };
 } catch { /* 처음 실행 */ }
 
 const clients = new Set();
@@ -53,7 +53,7 @@ function setState(patch) {
   for (const res of clients) res.write(msg);
   fs.mkdirSync(DATA, { recursive: true });
   // 실행 중에만 의미 있는 값은 저장하지 않음
-  const { startedAt, mine, log, ...saved } = state;
+  const { startedAt, mine, log, preview, ...saved } = state;
   fs.writeFileSync(STATE_FILE, JSON.stringify(saved), "utf-8");
   for (const fn of listeners) fn(state);
 }
