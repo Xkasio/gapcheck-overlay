@@ -251,7 +251,6 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); tex
 .st-bar { display: flex; gap: var(--u); }
 .st-bar i { width: calc(var(--u) * 4); height: calc(var(--u) * 4); background: rgba(255, 255, 255, .22); box-shadow: var(--u) var(--u) 0 rgba(0, 0, 0, .5); }
 .st-bar i.on { background: var(--st); }
-.st-time { color: #aaaaaa; text-shadow: var(--u) var(--u) 0 #2a2a2a; font-variant-numeric: tabular-nums; }
 .mc-status.flash { animation: st-flash .7s ease-out; }
 @keyframes st-flash {
   0% { background: rgba(255, 255, 255, .45); }
@@ -273,6 +272,9 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); tex
 .overlay-page.transparent { background: transparent; }
 
 .overlay-page #status { flex: none; margin: 4px 0; }
+/* 현황 전용 창: 위쪽 정렬 */
+.overlay-page.part-status { justify-content: flex-start; }
+.overlay-page.part-status .edit-hint { margin: 6px 0; align-self: flex-start; }
 .edit-hint { display: none; }
 /* F7 위치 옮기기 모드 */
 .overlay-page.edit { -webkit-app-region: drag; outline: 3px dashed var(--accent); outline-offset: -3px; background: rgba(0, 0, 0, .35); cursor: move; }

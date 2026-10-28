@@ -1,5 +1,6 @@
 // Electron 진입점 (개발: start.bat / npm start, 배포: 설치판·포터블 exe)
-// 중계 서버를 띄우고 제어 창과 채팅 오버레이(투명·항상 위·클릭 통과) 창을 연다.
+// 중계 서버를 띄우고 제어 창과 오버레이(투명·항상 위·클릭 통과) 창 두 개(현황, 채팅)를 연다.
+// 두 오버레이는 위치를 따로 정할 수 있다.
 // 전역 단축키(게임 중에도 동작, 제어 창에서 바꿀 수 있음). 기본: F6 마인크래프트 전체화면(테두리 없음) 전환,
 // F7 오버레이 위치 옮기기, F8 시작/재시작, F9 정지
 const { app, BrowserWindow, globalShortcut, screen, shell } = require("electron");
@@ -12,7 +13,11 @@ process.env.GAPCHECK_DATA = path.join(app.getPath("userData"), "data");
 const server = require("./server");
 const mcwindow = process.platform === "win32" ? require("./mcwindow") : null;
 
-const BOUNDS_FILE = path.join(app.getPath("userData"), "overlay-bounds.json");
+// 오버레이 창 위치 파일 (채팅은 예전 파일 이름을 그대로 써서 기존 위치 유지)
+const BOUNDS_FILES = {
+  chat: path.join(app.getPath("userData"), "overlay-bounds.json"),
+  status: path.join(app.getPath("userData"), "status-bounds.json"),
+};
 const KEYS_FILE = path.join(app.getPath("userData"), "keybinds.json");
 // 동작 이름 -> 단축키 (Electron accelerator 형식, 빈 문자열 = 없음)
 const DEFAULT_KEYS = { start: "F8", stop: "F9", fullscreen: "F6", editOverlay: "F7", toggleAdvancements: "", toggleKeepChat: "" };
@@ -20,7 +25,7 @@ const ICON = path.join(__dirname, "build", "icon.png");
 const RELEASES_URL = "https://github.com/cksgh111/gapcheck-overlay/releases/latest";
 let port = null;
 let controlWin = null;
-let overlay = null;
+const overlays = {}; // part -> BrowserWindow
 let editing = false;
 let update = { status: "idle" };
 let keybinds = loadKeybinds();
@@ -36,12 +41,14 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(init);
 }
 
-function overlayBounds() {
+function overlayBounds(part) {
   const { workArea } = screen.getPrimaryDisplay();
-  // 기본: 화면 왼쪽 아래, 마인크래프트 채팅창 자리
-  const fallback = { x: workArea.x + 8, y: workArea.y + workArea.height - 420, width: 720, height: 300 };
+  // 기본: 현황은 화면 왼쪽 위, 채팅은 왼쪽 아래(마인크래프트 채팅창 자리)
+  const fallback = part === "status"
+    ? { x: workArea.x + 8, y: workArea.y + 8, width: 640, height: 90 }
+    : { x: workArea.x + 8, y: workArea.y + workArea.height - 420, width: 720, height: 300 };
   try {
-    const b = JSON.parse(fs.readFileSync(BOUNDS_FILE, "utf-8"));
+    const b = JSON.parse(fs.readFileSync(BOUNDS_FILES[part], "utf-8"));
     // 모니터 구성이 바뀌어 화면 밖이면 기본 위치로
     const onScreen = screen.getAllDisplays().some(({ bounds: d }) =>
       b.x < d.x + d.width && b.x + b.width > d.x && b.y < d.y + d.height && b.y + b.height > d.y);
@@ -51,9 +58,9 @@ function overlayBounds() {
   }
 }
 
-function createOverlay() {
-  overlay = new BrowserWindow({
-    ...overlayBounds(),
+function createOverlay(part) {
+  const overlay = new BrowserWindow({
+    ...overlayBounds(part),
     transparent: true,
     backgroundColor: "#00000000",
     frame: false,
@@ -67,10 +74,13 @@ function createOverlay() {
   });
   overlay.setAlwaysOnTop(true, "screen-saver"); // 테두리 없는 전체화면 게임보다 위
   overlay.setIgnoreMouseEvents(true); // 클릭은 게임으로 통과
-  overlay.loadURL(`http://localhost:${port}/overlay.html?electron`);
+  overlay.loadURL(`http://localhost:${port}/overlay.html?electron&part=${part}`);
   overlay.once("ready-to-show", () => overlay.showInactive());
-  overlay.on("moved", () => fs.writeFileSync(BOUNDS_FILE, JSON.stringify(overlay.getBounds())));
+  overlay.on("moved", () => fs.writeFileSync(BOUNDS_FILES[part], JSON.stringify(overlay.getBounds())));
+  overlays[part] = overlay;
 }
+
+const eachOverlay = (fn) => Object.values(overlays).forEach((w) => !w.isDestroyed() && fn(w));
 
 function createControl() {
   controlWin = new BrowserWindow({
@@ -92,19 +102,21 @@ function createControl() {
   controlWin.on("closed", () => app.quit());
 }
 
+/** 위치 옮기기 모드: 현황·채팅 창을 모두 드래그할 수 있게 */
 function toggleEdit() {
   editing = !editing;
-  overlay.setIgnoreMouseEvents(!editing);
-  overlay.setFocusable(editing);
-  if (editing) overlay.focus();
-  overlay.webContents.executeJavaScript(`window.setEditMode(${editing})`);
+  eachOverlay((w) => {
+    w.setIgnoreMouseEvents(!editing);
+    w.setFocusable(editing);
+    w.webContents.executeJavaScript(`window.setEditMode(${editing})`);
+  });
   return { ok: true, editing };
 }
 
 function toggleFullscreen() {
   if (!mcwindow) return { ok: false, message: "Windows에서만 지원합니다." };
   const r = mcwindow.toggleBorderless();
-  if (r.ok) overlay.moveTop();
+  if (r.ok) eachOverlay((w) => w.moveTop());
   return r;
 }
 
@@ -212,16 +224,18 @@ async function init() {
     return { ok: true };
   };
 
-  createOverlay();
+  createOverlay("status");
+  createOverlay("chat");
   createControl();
   setupAutoUpdate();
 
   // 게임이 창 순서를 바꿔도 오버레이가 계속 위에 있도록 주기적으로 다시 올린다
   setInterval(() => {
-    if (overlay && !overlay.isDestroyed() && !editing) {
-      overlay.setAlwaysOnTop(true, "screen-saver");
-      overlay.moveTop();
-    }
+    if (editing) return;
+    eachOverlay((w) => {
+      w.setAlwaysOnTop(true, "screen-saver");
+      w.moveTop();
+    });
   }, 2000);
 
   registerKeys();

@@ -184,7 +184,7 @@ $("#fullscreen").addEventListener("click", async () => {
 });
 $("#edit-overlay").addEventListener("click", async () => {
   const r = await appAction("editOverlay");
-  if (r.ok) setStatus(r.editing ? "오버레이를 드래그해서 옮긴 뒤 버튼이나 단축키를 다시 누르세요." : "오버레이 위치를 고정했습니다.");
+  if (r.ok) setStatus(r.editing ? "현황 창과 채팅 창을 각각 드래그해서 옮긴 뒤 버튼이나 단축키를 다시 누르세요." : "현황·채팅 위치를 고정했습니다.");
 });
 
 // ---------- 단축키 지정 ----------

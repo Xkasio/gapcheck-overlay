@@ -124,18 +124,17 @@ function chatMessages(state) {
   return msgs;
 }
 
-/** 현황 줄. 시작 후 계속 떠 있고, 단계가 바뀌면 잠깐 반짝인다. 매치 완료면 시간이 멈춘다 */
+/** 현황 줄. 시작 후 계속 떠 있고, 단계가 바뀌면 잠깐 반짝인다 */
 export class StatusView {
   constructor(root, zoom = 1) {
     root.classList.add("mc-status");
-    root.innerHTML = `<span class="st-name"></span><span class="st-stage"></span><span class="st-bar">${"<i></i>".repeat(STAGES.length)}</span><span class="st-time"></span>`;
+    root.innerHTML = `<span class="st-name"></span><span class="st-stage"></span><span class="st-bar">${"<i></i>".repeat(STAGES.length)}</span>`;
     this.root = root;
     this.zoom = zoom;
     this.el = {
       name: root.querySelector(".st-name"),
       stage: root.querySelector(".st-stage"),
       bar: [...root.querySelectorAll(".st-bar i")],
-      time: root.querySelector(".st-time"),
     };
     this.lastKey = null;
   }
@@ -157,7 +156,7 @@ export class StatusView {
       cur = st;
       reached.add(st[1]);
     }
-    const [ms, idx] = cur;
+    const idx = cur[1];
     const key = `${state.startedAt}:${idx}`;
     if (key !== this.lastKey) {
       // 단계 색: 네더(1~3) 주황, 엔드 유적~엔드(4~6) 보라, 완료 초록
@@ -172,7 +171,6 @@ export class StatusView {
       }
       this.lastKey = key;
     }
-    this.el.time.textContent = fmt(idx === DONE ? ms : t);
   }
 }
 
