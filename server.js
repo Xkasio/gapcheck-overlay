@@ -72,7 +72,9 @@ const control = {
 const watcher = new LogWatcher({
   onInfo: (info) => setState({ log: info && { ...state.log, ...info } }),
   // 자동 시작: 매치/월드가 시작되는 순간 타이머 시작 (카운트다운 없이), 새 매치 준비 때 정지
+  // 매치 중 월드 리셋: 매치 시계는 계속 가므로 타이머는 두고, 새 월드에서 다시 딸 내 기록만 비운다
   onRun: (what) => {
+    if (what === "worldReset") return state.startedAt != null && setState({ mine: [] });
     if (!state.autoStart || !state.events.length) return;
     if (what === "start") setState({ startedAt: Date.now(), mine: [] });
     else control.stop();

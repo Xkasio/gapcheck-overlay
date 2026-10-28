@@ -7,9 +7,11 @@
 //
 // 런 시작 감지 (타이머 자동 시작):
 //   [WorldCreator] Match initializing...        새 매치 준비 -> 초기화, 시작 대기
-//   StateOutput State: generating,0              새 월드 생성 -> 시작 대기
-//   Re-activating match recording                랭크드 매치 시작(카운트다운 끝) -> 시작
+//   Re-activating match recording                랭크드 매치 시작(카운트다운 끝) -> 시작, "매치 중"
+//   [WorldCreator] resetting the server...       매치 중 월드 리셋 -> 타이머는 그대로(매치 시계는 계속 감), 내 기록만 초기화
+//   StateOutput State: generating,0              (매치 중이 아닐 때) 새 월드 생성 -> 시작 대기
 //   StateOutput State: inworld,unpaused          (랭크드가 아닌 월드) 대기 중 첫 플레이 -> 시작
+//   StateOutput State: title                     타이틀 화면 -> 매치 끝
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -103,6 +105,7 @@ class LogWatcher {
     this.onInfo = onInfo;
     this.onRun = onRun;
     this.armed = false; // 새 월드/매치를 준비 중이라 다음 시작 신호를 기다리는 상태
+    this.inMatch = false; // 랭크드 매치 진행 중 (이때 월드 리셋은 새 런이 아님)
     this.file = null;
     this.timer = null;
   }
@@ -119,6 +122,7 @@ class LogWatcher {
     this.offset = fs.statSync(file).size;
     this.rest = Buffer.alloc(0);
     this.user = this.readUser();
+    this.restoreRunState();
     this.onInfo({ path: file, user: this.user });
     this.timer = setInterval(() => this.poll(), 250);
   }
@@ -127,6 +131,27 @@ class LogWatcher {
     clearInterval(this.timer);
     this.timer = null;
     this.file = null;
+  }
+
+  /** 이미 진행 중인 매치 한가운데서 켜도 리셋을 새 런으로 착각하지 않도록, 기존 로그로 매치 상태를 맞춘다 */
+  restoreRunState() {
+    this.armed = false;
+    this.inMatch = false;
+    const emit = this.onRun;
+    this.onRun = () => {}; // 지난 줄로는 타이머를 건드리지 않음
+    try {
+      const size = Math.min(this.offset, 8 * 1024 * 1024);
+      const fd = fs.openSync(this.file, "r");
+      const buf = Buffer.alloc(size);
+      fs.readSync(fd, buf, 0, size, this.offset - size);
+      fs.closeSync(fd);
+      for (const raw of buf.toString("latin1").split("\n")) {
+        // 런 감지 줄은 모두 영어라 latin1 로 읽어도 된다
+        const parsed = parseLine(raw.replace(/\r$/, ""));
+        if (parsed) this.detectRun(parsed.text);
+      }
+    } catch { /* 읽기 실패: 매치 밖으로 간주 */ }
+    this.onRun = emit;
   }
 
   /** 게임을 켤 때 남는 "Setting user: 닉네임" 으로 내 닉네임을 알아낸다 */
@@ -191,15 +216,32 @@ class LogWatcher {
   /** 런 시작/초기화 줄이면 처리하고 true */
   detectRun(text) {
     if (text.startsWith("[WorldCreator] Match initializing")) {
+      this.inMatch = false;
       this.armed = true;
       this.onRun("reset");
       return true;
     }
-    if (text.startsWith("StateOutput State: generating")) {
-      this.armed = true;
+    if (text === "Re-activating match recording") {
+      // 준비 후 첫 신호면 매치 시작. 준비 없이 오면(재접속 등) 매치 중으로만 표시
+      if (this.armed) this.onRun("start");
+      this.armed = false;
+      this.inMatch = true;
       return true;
     }
-    if (this.armed && (text === "Re-activating match recording" || text === "StateOutput State: inworld,unpaused")) {
+    if (text.startsWith("[WorldCreator] resetting the server")) {
+      if (this.inMatch) this.onRun("worldReset");
+      return true;
+    }
+    if (text.startsWith("StateOutput State: generating")) {
+      if (!this.inMatch) this.armed = true;
+      return true;
+    }
+    if (text === "StateOutput State: title") {
+      this.inMatch = false;
+      this.armed = false;
+      return true;
+    }
+    if (this.armed && text === "StateOutput State: inworld,unpaused") {
       this.armed = false;
       this.onRun("start");
       return true;

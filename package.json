@@ -18,7 +18,7 @@
   },
   "productName": "GapCheck Overlay",
   "description": "gapcheck.gg 매치 타임라인을 마인크래프트 채팅처럼 게임 위에 띄워 주는 비공식 오버레이",
-  "author": "cksgh111",
+  "author": "Xkasio",
   "build": {
     "appId": "gg.gapcheck.overlay.unofficial",
     "productName": "GapCheck Overlay",
@@ -60,14 +60,14 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "cksgh111",
+        "owner": "Xkasio",
         "repo": "gapcheck-overlay"
       }
     ]
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/cksgh111/gapcheck-overlay.git"
+    "url": "https://github.com/Xkasio/gapcheck-overlay.git"
   },
-  "homepage": "https://github.com/cksgh111/gapcheck-overlay"
+  "homepage": "https://github.com/Xkasio/gapcheck-overlay"
 }
