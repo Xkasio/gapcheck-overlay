@@ -1,7 +1,7 @@
 // 오버레이. Electron 투명 창(main.js), 브라우저, OBS 브라우저 소스 어디서든 같은 서버 상태를 그린다.
 //   ?part=status 현황 줄만, ?part=chat 채팅만, 없으면 둘 다 (앱은 두 창으로 따로 띄워 위치를 각각 정함)
 //   OBS: http://localhost:5174/overlay.html?transparent (또는 &part=status / &part=chat 로 따로)
-import { ChatView, StatusView, subscribeState } from "./shared.js";
+import { ChatView, StatusView, previewState, subscribeState } from "./shared.js";
 
 const params = new URLSearchParams(location.search);
 if (params.has("transparent") || params.has("electron") || navigator.userAgent.includes("OBS/")) {
@@ -24,8 +24,10 @@ window.setEditMode = (on) => document.body.classList.toggle("edit", on);
 
 function tick() {
   const now = Date.now();
-  status?.render(state, now);
-  view?.render(state, now);
+  // 제어 창에서 설정 창을 연 동안은 예시를 보여 줘서 크기·투명도를 맞추기 쉽게
+  const s = state?.preview ? previewState(state) : state;
+  status?.render(s, now);
+  view?.render(s, now);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
