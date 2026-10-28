@@ -1,7 +1,7 @@
 // Electron 진입점 (개발: start.bat / npm start, 배포: 설치판·포터블 exe)
-// 중계 서버를 띄우고 제어 창과 오버레이(투명·항상 위·클릭 통과) 창 두 개(현황, 채팅)를 연다.
+// 중계 서버를 띄우고 제어 창과 오버레이 창 두 개를 연다.
 // 두 오버레이는 위치를 따로 정할 수 있다.
-// 전역 단축키(게임 중에도 동작, 제어 창에서 바꿀 수 있음). 기본: F6 마인크래프트 전체화면(테두리 없음) 전환,
+// 전역 단축키. 기본: F6 마인크래프트 테두리없는 창 모드 전환,
 // F7 오버레이 위치 옮기기, F8 시작/재시작, F9 정지
 const { app, BrowserWindow, dialog, globalShortcut, screen, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
