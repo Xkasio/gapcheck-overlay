@@ -1,6 +1,5 @@
 // 마인크래프트 창을 "테두리 없는 전체화면" <-> 창 모드로 전환 (Windows 전용, koffi로 user32 호출)
-// 진짜 전체화면(F11, 독점 모드)은 다른 창이 위에 못 뜨므로, 같은 크기의 테두리 없는 창으로 바꿔서
-// 오버레이가 게임 위에 보이게 한다. Julti, Borderless Gaming 과 같은 방식.
+// 오버레이가 게임 위에
 const koffi = require("koffi");
 
 const user32 = koffi.load("user32.dll");
