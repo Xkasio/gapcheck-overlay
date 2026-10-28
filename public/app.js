@@ -35,9 +35,11 @@ subscribeState((s) => {
   renderLog(s);
   if (first) {
     first = false;
-    // ?id=... 로 열면 바로 검색, 아니면 마지막으로 보던 매치
+    // ?id=... 로 열면 바로 검색, 아니면 마지막으로 보던 매치 (리플레이였으면 그 파일)
     const initial = new URLSearchParams(location.search).get("id") ?? s.matchId;
-    if (initial) {
+    if (!new URLSearchParams(location.search).get("id") && s.replayPath) {
+      openReplay(s.replayPath);
+    } else if (initial) {
       $("#query").value = initial;
       search(String(initial));
     }
@@ -50,23 +52,50 @@ $("#search").addEventListener("submit", (e) => {
   search($("#query").value);
 });
 
+let replayPath = null; // 리플레이 파일에서 불러왔으면 그 경로 (다시 켤 때 같은 파일을 연다)
+
 async function search(text) {
   const id = parseId(text);
   if (!id) return setStatus("올바른 ID나 gapcheck.gg/m/ID 주소를 입력하세요.", true);
   setStatus(`${id} 불러오는 중...`);
+  let m;
   try {
-    match = await fetchMatch(id);
+    m = await fetchMatch(id);
   } catch (err) {
     return setStatus(`${id}: ${err.message}`, true);
   }
-  setStatus(`매치 ${id} 불러옴`);
+  replayPath = null;
   history.replaceState(null, "", `?id=${id}`);
+  showMatch(m, `매치 ${id} 불러옴`);
+}
+
+/** 리플레이 파일(.rrf)에서 매치 불러오기 */
+async function openReplay(file) {
+  const name = file.split(/[\\/]/).pop();
+  setStatus(`${name} 불러오는 중...`);
+  const r = await fetch(`/api/replay?path=${encodeURIComponent(file)}`);
+  const body = await r.json();
+  if (!r.ok) return setStatus(`${name}: ${body.error}`, true);
+  replayPath = file;
+  $("#query").value = body.match.matchId ?? "";
+  history.replaceState(null, "", location.pathname);
+  showMatch(body.match, `리플레이 ${name} 불러옴 (매치 #${body.match.matchId})`);
+}
+
+function showMatch(m, message) {
+  match = m;
+  setStatus(message);
   // 같은 매치를 다시 불러온 경우 고른 플레이어 유지
   const same = state?.matchId === match.matchId && match.players.some((p) => p.uuid === state.player?.uuid);
   playerUuid = same ? state.player.uuid : winnerUuid(match);
   renderMatch();
   applySelection(same);
 }
+
+$("#browse-replay").addEventListener("click", async () => {
+  const r = await appAction("browseReplay");
+  if (r.ok && r.path) openReplay(r.path);
+});
 
 function setStatus(text, error = false) {
   $("#status").textContent = text;
@@ -79,7 +108,7 @@ function renderMatch() {
   $("#main").hidden = false;
   $("#m-id").textContent = `#${m.matchId}`;
   const facts = [
-    ["시드 유형", SEED_TYPES[m.seedType] ?? m.seedType],
+    ["시드 유형", SEED_TYPES[m.seedType] ?? m.seedType ?? "-"],
     [BASTION, BASTION_TYPES[m.bastionType] ?? m.bastionType ?? "-"],
     ["기록", fmt(m.finalTime ?? 0, 3)],
     ["날짜", (m.date ?? "").slice(0, 10)],
@@ -149,6 +178,7 @@ function applySelection(keepRun) {
     player: { uuid: p.uuid, nickname: p.nickname, rank: p.eloRank, elo: p.elo },
     events,
     stages: buildStages(match, playerUuid),
+    replayPath,
   };
   if (!keepRun) patch.startedAt = null;
   postJson("/api/state", patch);
