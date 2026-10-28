@@ -1,6 +1,6 @@
 {
   "name": "gapcheck-overlay",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -34,7 +34,8 @@
       "package.json",
       "!node_modules/koffi/{src,vendor,doc}/**",
       "!node_modules/koffi/build/koffi/{darwin,freebsd,linux,musl,openbsd}_*/**",
-      "!node_modules/koffi/build/koffi/win32_{arm64,ia32}/**"
+      "!node_modules/koffi/build/koffi/win32_{arm64,ia32}/**",
+      "logwatch.js"
     ],
     "asarUnpack": [
       "node_modules/koffi/build/**"

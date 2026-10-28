@@ -51,6 +51,8 @@
         <div class="toggles">
           <label class="check"><input type="checkbox" id="show-adv"> 채팅에 발전 과제 표시</label>
           <label class="check"><input type="checkbox" id="keep-chat"> 채팅 사라지지 않게</label>
+          <label class="check"><input type="checkbox" id="show-times"> 타임라인 표시 <span class="muted">[3:12]</span></label>
+          <label class="check"><input type="checkbox" id="show-delta"> 내 기록과 비교 <span class="muted"><b class="d-blue">-1.2</b> <b class="d-red">+4.9</b></span></label>
         </div>
 
         <div class="controls">
@@ -67,15 +69,33 @@
         </div>
         <label class="range">채팅 크기 <input type="range" id="scale" min="1" max="4" step="0.25"><output id="scale-out"></output></label>
         <div class="controls app-only" hidden>
-          <button id="fullscreen">⛶ 마인크래프트 전체화면 <kbd data-key="fullscreen"></kbd></button>
-          <button id="edit-overlay">✥ 오버레이 위치 <kbd data-key="editOverlay"></kbd></button>
+          <button id="fullscreen">⛶ 마인크래프트 전체화면 <kbd data-key="fullscreen">F6</kbd></button>
+          <button id="edit-overlay">✥ 오버레이 위치 <kbd data-key="editOverlay">F7</kbd></button>
         </div>
         <p class="hint app-only" hidden>
           게임의 <kbd>F11</kbd> 전체화면은 다른 창을 가리므로 오버레이가 안 보입니다. 대신
-          <kbd data-key="fullscreen"></kbd>(전체화면 단축키)을 쓰세요. 화면 전체를 덮는 테두리 없는 창으로 바꿉니다.
+          <kbd data-key="fullscreen">F6</kbd>(전체화면 단축키)을 쓰세요. 화면 전체를 덮는 테두리 없는 창으로 바꿉니다.
         </p>
         <p class="hint browser-only">
           브라우저로 열린 상태입니다. 게임 위에 뜨는 투명 오버레이와 단축키는 GapCheck Overlay 앱에서 사용할 수 있습니다.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>마인크래프트 로그 <span class="muted">내 기록 비교용</span></h2>
+        <div class="logrow">
+          <input id="log-path" placeholder="인스턴스 폴더 또는 logs\latest.log 경로" autocomplete="off">
+          <button id="log-browse" class="app-only" hidden>찾아보기</button>
+          <button id="log-connect" class="primary">연결</button>
+        </div>
+        <div class="logrow">
+          <select id="log-detected"><option value="">자동으로 찾은 로그…</option></select>
+          <button id="log-detect">다시 찾기</button>
+        </div>
+        <p class="log-status" id="log-status">연결 안 됨</p>
+        <p class="hint">
+          게임 로그에서 내 발전 과제를 실시간으로 읽어, 따라가는 플레이어 기록과의 차이를 채팅 뒤에 붙입니다.
+          시작(<kbd data-key="start">F8</kbd>)은 내 런을 시작할 때 누르세요. 그 시점부터의 시간으로 비교합니다.
         </p>
       </div>
 

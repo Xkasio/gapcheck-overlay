@@ -97,9 +97,22 @@ export const postJson = (url, body) =>
 
 // ---------- 채팅 메시지 ----------
 // 메시지 = { at: 시작 기준 ms, parts: [[text, colorClass]] }
+/** 채팅 앞 시각 "[3:12]" */
+const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
+
+/** 내 기록 - 따라가는 플레이어 기록: 내가 빠르면 "-1.2"(파랑), 느리면 "+4.9"(빨강) */
+export function fmtDelta(ms) {
+  const sign = ms > 0 ? "+" : ms < 0 ? "-" : "±";
+  const abs = Math.abs(ms);
+  return sign + (abs < 60000 ? (abs / 1000).toFixed(1) : fmt(abs, 1));
+}
+
+// 메시지 = { at: 시작 기준 ms, showAt?: 다시 띄울 시각, parts: [[text, colorClass]] }
 function chatMessages(state) {
   const name = state.player?.nickname ?? "?";
   const msgs = [];
+  const times = state.showTimes !== false;
+  const mine = new Map((state.mine ?? []).map(([ms, type]) => [type, ms]));
   // 카운트다운: 1초마다 한 줄씩 (예: 3초 → 3, 2, 1, 시작!)
   for (let k = state.countdown ?? 0; k > 0; k--) {
     const text = k === state.countdown ? `[GapCheck] ${name}의 타임라인 시작까지 ${k}초` : `[GapCheck] ${k}초`;
@@ -109,16 +122,25 @@ function chatMessages(state) {
 
   for (const [ms, type] of state.events ?? []) {
     if (NO_CHAT.has(type)) continue;
+    // 타임라인 표시: 앞에 그 플레이어의 시각 "[3:12] "
+    const prefix = times ? [[`[${clock(ms)}] `, "c-gray"]] : [];
     if (type.startsWith(TIMELINE)) {
       const key = type.slice(TIMELINE.length);
-      msgs.push({ at: ms, parts: [[fill(TIMELINE_MESSAGES[key] ?? `{name}: ${key}`, name), "c-yellow"]] });
+      msgs.push({ at: ms, parts: [...prefix, [fill(TIMELINE_MESSAGES[key] ?? `{name}: ${key}`, name), "c-yellow"]] });
     } else if (state.showAdvancements !== false) {
       // "%s이(가) %s 발전 과제를 달성했습니다" -> 이름(흰색) + [제목](초록)
       const [before, middle, after] = CHAT_FORMATS.task.split("%s");
-      msgs.push({
+      const msg = {
         at: ms,
-        parts: [[before, ""], [name, ""], [middle, ""], [`[${ADVANCEMENT_TITLES[type] ?? type}]`, "c-green"], [after, ""]],
-      });
+        parts: [...prefix, [before, ""], [name, ""], [middle, ""], [`[${ADVANCEMENT_TITLES[type] ?? type}]`, "c-green"], [after, ""]],
+      };
+      // 내 기록과 비교: 내가 같은 발전 과제를 달성했으면 뒤에 차이. 내가 나중이면 그때 줄을 다시 띄운다
+      const myMs = mine.get(type);
+      if (state.showDelta !== false && myMs != null) {
+        msg.parts.push([` ${fmtDelta(myMs - ms)}`, myMs > ms ? "c-red" : "c-blue"]);
+        msg.showAt = Math.max(ms, myMs);
+      }
+      msgs.push(msg);
     }
   }
   return msgs;
@@ -189,7 +211,8 @@ export class ChatView {
   render(state, now = Date.now()) {
     this.root.style.setProperty("--scale", (state?.scale ?? 2) * this.zoom);
     // 재시작하면 줄을 처음부터 다시 쌓도록 startedAt 도 키에 넣는다
-    const key = state && JSON.stringify([state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt, state.showAdvancements]);
+    const key = state && JSON.stringify([state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt,
+      state.showAdvancements, state.showTimes, state.showDelta, state.mine?.length]);
     if (key !== this.cacheKey) {
       this.cacheKey = key;
       this.msgs = state ? chatMessages(state) : [];
@@ -200,8 +223,8 @@ export class ChatView {
     if (state?.startedAt != null) {
       const t = now - state.startedAt;
       this.msgs.forEach((msg, i) => {
-        const age = t - msg.at;
-        if (age < 0) return;
+        if (t < msg.at) return;
+        const age = t - (msg.showAt ?? msg.at);
         if (state.keepChat) return visible.push([i, 1]);
         if (age >= CHAT_LIFE_MS) return;
         // 마인크래프트 공식: 마지막 1초 동안 흐려짐

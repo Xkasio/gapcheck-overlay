@@ -3,7 +3,7 @@
 // 두 오버레이는 위치를 따로 정할 수 있다.
 // 전역 단축키(게임 중에도 동작, 제어 창에서 바꿀 수 있음). 기본: F6 마인크래프트 전체화면(테두리 없음) 전환,
 // F7 오버레이 위치 옮기기, F8 시작/재시작, F9 정지
-const { app, BrowserWindow, globalShortcut, screen, shell } = require("electron");
+const { app, BrowserWindow, dialog, globalShortcut, screen, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
@@ -239,6 +239,15 @@ async function init() {
     return { ok: true };
   };
   server.hooks.relaunchAsAdmin = relaunchAsAdmin;
+  // 마인크래프트 로그 파일 고르기
+  server.hooks.browseLog = async () => {
+    const r = await dialog.showOpenDialog(controlWin, {
+      title: "마인크래프트 latest.log 선택",
+      filters: [{ name: "마인크래프트 로그", extensions: ["log"] }],
+      properties: ["openFile"],
+    });
+    return r.canceled ? { ok: true } : { ok: true, path: r.filePaths[0] };
+  };
   server.hooks.installUpdate = () => {
     if (update.status !== "ready") return { ok: false, message: "받아 둔 업데이트가 없습니다." };
     // 설치 화면 없이 조용히 설치하고 다시 실행

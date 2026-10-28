@@ -167,6 +167,13 @@ kbd {
 .seed .pct { font-style: normal; font-size: 12px; color: var(--accent); margin-left: auto; white-space: nowrap; }
 .toggles { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 12px; }
 .toggles .check { margin: 0; color: var(--text); }
+.d-blue { color: #6f7bff; } .d-red { color: #ff6b6b; }
+.logrow { display: flex; gap: 8px; margin-bottom: 8px; }
+.logrow input, .logrow select { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: inherit; font-size: 13px; }
+.logrow input:focus { outline: none; border-color: var(--accent); }
+.log-status { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.log-status.ok { color: var(--accent); }
+.log-status.error { color: var(--danger); }
 button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; font-size: inherit; }
 
 .keybinds { list-style: none; margin: 0 0 4px; padding: 0; }
@@ -211,6 +218,8 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); tex
 /* 마인크래프트 색 코드 §a §e §7 과 그 그림자(색의 1/4) */
 .chat .c-green { color: #55ff55; text-shadow: var(--u) var(--u) 0 #153f15; }
 .chat .c-yellow { color: #ffff55; text-shadow: var(--u) var(--u) 0 #3f3f15; }
+.chat .c-red { color: #ff5555; text-shadow: var(--u) var(--u) 0 #3f1515; }
+.chat .c-blue { color: #5555ff; text-shadow: var(--u) var(--u) 0 #15153f; }
 .chat .c-gray { color: #aaaaaa; text-shadow: var(--u) var(--u) 0 #2a2a2a; }
 
 .preview {

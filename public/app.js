@@ -21,6 +21,9 @@ subscribeState((s) => {
   $("#scale-out").textContent = `${s.scale ?? 2}x`;
   $("#show-adv").checked = s.showAdvancements !== false;
   $("#keep-chat").checked = !!s.keepChat;
+  $("#show-times").checked = s.showTimes !== false;
+  $("#show-delta").checked = s.showDelta !== false;
+  renderLog(s);
   if (first) {
     first = false;
     // ?id=... 로 열면 바로 검색, 아니면 마지막으로 보던 매치
@@ -153,6 +156,46 @@ $("#countdown").addEventListener("change", (e) => postJson("/api/state", { count
 $("#scale").addEventListener("input", (e) => postJson("/api/state", { scale: Number(e.target.value) }));
 $("#show-adv").addEventListener("change", (e) => postJson("/api/state", { showAdvancements: e.target.checked }));
 $("#keep-chat").addEventListener("change", (e) => postJson("/api/state", { keepChat: e.target.checked }));
+$("#show-times").addEventListener("change", (e) => postJson("/api/state", { showTimes: e.target.checked }));
+$("#show-delta").addEventListener("change", (e) => postJson("/api/state", { showDelta: e.target.checked }));
+
+// ---------- 마인크래프트 로그 ----------
+function renderLog(s) {
+  if (document.activeElement !== $("#log-path")) $("#log-path").value = s.logPath ?? "";
+  const log = s.log;
+  const el = $("#log-status");
+  el.classList.toggle("ok", !!log && !log.error);
+  el.classList.toggle("error", !!log?.error);
+  if (!log) return void (el.textContent = "연결 안 됨");
+  if (log.error) return void (el.textContent = `⚠ ${log.error}`);
+  const last = log.last ? ` · 마지막 감지: [${log.last.title}]${log.last.at != null ? ` ${fmt(log.last.at)}` : " (시작 전)"}` : "";
+  const mine = s.mine?.length ? ` · 이번 런 ${s.mine.length}개` : "";
+  el.textContent = `● 연결됨 · 플레이어 ${log.user ?? "(확인 중)"}${mine}${last}`;
+}
+
+// ...\instances\New_Instance2\.minecraft\logs\latest.log -> New_Instance2
+const instanceName = (p) => p.replace(/^.*[\\/]instances[\\/]/, "").replace(/[\\/]\.?minecraft[\\/]logs[\\/]latest\.log$/, "");
+
+async function detectLogs() {
+  const { logs } = await (await fetch("/api/logs/detect")).json();
+  $("#log-detected").innerHTML = `<option value="">${logs.length ? "자동으로 찾은 로그 선택…" : "찾은 로그 없음"}</option>` +
+    logs.map((l) => `<option value="${esc(l.path)}">${esc(instanceName(l.path))} — ${new Date(l.mtime).toLocaleString()}</option>`).join("");
+  return logs;
+}
+detectLogs().then((logs) => {
+  // 처음 실행이면 가장 최근에 쓴 인스턴스 로그에 자동 연결
+  if (!state?.logPath && logs[0]) postJson("/api/state", { logPath: logs[0].path });
+});
+
+const connectLog = (p) => postJson("/api/state", { logPath: p.trim() });
+$("#log-connect").addEventListener("click", () => connectLog($("#log-path").value));
+$("#log-path").addEventListener("keydown", (e) => e.key === "Enter" && connectLog(e.target.value));
+$("#log-detected").addEventListener("change", (e) => e.target.value && connectLog(e.target.value));
+$("#log-detect").addEventListener("click", detectLogs);
+$("#log-browse").addEventListener("click", async () => {
+  const r = await appAction("browseLog");
+  if (r.ok && r.path) connectLog(r.path);
+});
 
 // ---------- 앱 정보 (버전, 업데이트, 단축키) ----------
 let keybinds = {};
