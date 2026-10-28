@@ -16,9 +16,17 @@ const isMinor = (type) => type.startsWith(TIMELINE) || NO_CHAT.has(type);
 export const CHAT_LIFE_MS = 10000; // 마인크래프트 채팅처럼 10초 뒤 사라짐
 const CHAT_MAX_LINES = 10;
 
-// 이벤트 = [ms, type, who]  who: 0 = 따라가는 플레이어, 1 = 상대
-export const ME = 0;
-export const OPPONENT = 1;
+// 현황 단계. 오버레이 맨 위에 계속 표시되고, 매치 기록의 아래 이벤트 시각에 맞춰 바뀐다
+export const STAGES = ["매치 시작", "네더 입장", "바스티온 입장", "네더 요새 입장", "엔드 유적 찾는 중", "엔드 유적 발견", "엔드 입장", "매치 완료"];
+const STAGE_EVENTS = {
+  "story.enter_the_nether": 1,
+  "nether.find_bastion": 2,
+  "nether.find_fortress": 3,
+  "projectelo.timeline.blind_travel": 4,
+  "story.follow_ender_eye": 5,
+  "story.enter_the_end": 6,
+};
+const DONE = STAGES.length - 1;
 
 const fill = (text, name) => text.replace("{name}", name).replace(/\{place\}|\{time\}/g, "?");
 
@@ -55,15 +63,26 @@ export async function fetchMatch(id) {
 }
 
 export const winnerUuid = (match) => match.result?.uuid ?? match.players?.[0]?.uuid;
-export const opponentOf = (match, uuid) => match.players?.find((p) => p.uuid !== uuid) ?? null;
 
-/** 따라가는 플레이어(+ withOpponent면 상대)의 이벤트를 시간순으로 */
-export function buildEvents(match, uuid, hideMinor, withOpponent) {
-  const opp = withOpponent ? opponentOf(match, uuid) : null;
+/** 따라가는 플레이어의 이벤트 [ms, type] 를 시간순으로 */
+export function buildEvents(match, uuid, hideMinor) {
   return (match.splits ?? [])
-    .filter((s) => (s.uuid === uuid || s.uuid === opp?.uuid) && !(hideMinor && isMinor(s.type)))
-    .map((s) => [s.time, s.type, s.uuid === uuid ? ME : OPPONENT])
+    .filter((s) => s.uuid === uuid && !(hideMinor && isMinor(s.type)))
+    .map((s) => [s.time, s.type])
     .sort((a, b) => a[0] - b[0]);
+}
+
+/** 현황 단계 [ms, 단계 index] 를 시간순으로. 같은 단계는 처음 도달한 시각만 */
+export function buildStages(match, uuid) {
+  const first = new Map([[0, 0]]);
+  for (const s of match.splits ?? []) {
+    const idx = STAGE_EVENTS[s.type];
+    if (s.uuid === uuid && idx != null && !(first.get(idx) <= s.time)) first.set(idx, s.time);
+  }
+  // 매치 완료는 승자만 (공식 기록 = 드래곤 처치 후 약 10초). 진 사람은 매치가 먼저 끝나므로 마지막 단계에 머문다
+  const done = match.result?.uuid === uuid ? match.result.time ?? match.finalTime : null;
+  if (done != null) first.set(DONE, done);
+  return [...first].map(([idx, ms]) => [ms, idx]).sort((a, b) => a[0] - b[0]);
 }
 
 /** 서버 상태 구독. 끊기면 EventSource가 알아서 다시 연결한다. */
@@ -79,37 +98,85 @@ export const postJson = (url, body) =>
 // ---------- 채팅 메시지 ----------
 // 메시지 = { at: 시작 기준 ms, parts: [[text, colorClass]] }
 function chatMessages(state) {
-  const me = state.player?.nickname ?? "?";
+  const name = state.player?.nickname ?? "?";
   const msgs = [];
   // 카운트다운: 1초마다 한 줄씩 (예: 3초 → 3, 2, 1, 시작!)
   for (let k = state.countdown ?? 0; k > 0; k--) {
-    const text = k === state.countdown ? `[GapCheck] ${me}의 타임라인 시작까지 ${k}초` : `[GapCheck] ${k}초`;
+    const text = k === state.countdown ? `[GapCheck] ${name}의 타임라인 시작까지 ${k}초` : `[GapCheck] ${k}초`;
     msgs.push({ at: -k * 1000, parts: [[text, "c-gray"]] });
   }
-  const vs = state.opponent ? ` vs ${state.opponent.nickname} #${state.opponent.rank ?? "-"}` : "";
-  msgs.push({ at: 0, parts: [[`[GapCheck] 시작! (${me} #${state.player?.rank ?? "-"}${vs})`, "c-green"]] });
+  msgs.push({ at: 0, parts: [[`[GapCheck] 시작! (${name} #${state.player?.rank ?? "-"})`, "c-green"]] });
 
-  for (const [ms, type, who] of state.events ?? []) {
+  for (const [ms, type] of state.events ?? []) {
     if (NO_CHAT.has(type)) continue;
-    const name = who === OPPONENT ? state.opponent?.nickname ?? "?" : me;
-    // 상대 이벤트는 앞에 빨간 [상대]
-    const prefix = who === OPPONENT ? [["[상대] ", "c-red"]] : [];
     if (type.startsWith(TIMELINE)) {
       const key = type.slice(TIMELINE.length);
-      msgs.push({ at: ms, parts: [...prefix, [fill(TIMELINE_MESSAGES[key] ?? `{name}: ${key}`, name), "c-yellow"]] });
-    } else {
+      msgs.push({ at: ms, parts: [[fill(TIMELINE_MESSAGES[key] ?? `{name}: ${key}`, name), "c-yellow"]] });
+    } else if (state.showAdvancements !== false) {
       // "%s이(가) %s 발전 과제를 달성했습니다" -> 이름(흰색) + [제목](초록)
       const [before, middle, after] = CHAT_FORMATS.task.split("%s");
       msgs.push({
         at: ms,
-        parts: [...prefix, [before, ""], [name, ""], [middle, ""], [`[${ADVANCEMENT_TITLES[type] ?? type}]`, "c-green"], [after, ""]],
+        parts: [[before, ""], [name, ""], [middle, ""], [`[${ADVANCEMENT_TITLES[type] ?? type}]`, "c-green"], [after, ""]],
       });
     }
   }
   return msgs;
 }
 
-/** 마인크래프트 채팅창 모양의 오버레이. 시각이 된 메시지만 아래에서부터 쌓이고 10초 뒤 사라진다. */
+/** 현황 줄. 시작 후 계속 떠 있고, 단계가 바뀌면 잠깐 반짝인다. 매치 완료면 시간이 멈춘다 */
+export class StatusView {
+  constructor(root, zoom = 1) {
+    root.classList.add("mc-status");
+    root.innerHTML = `<span class="st-name"></span><span class="st-stage"></span><span class="st-bar">${"<i></i>".repeat(STAGES.length)}</span><span class="st-time"></span>`;
+    this.root = root;
+    this.zoom = zoom;
+    this.el = {
+      name: root.querySelector(".st-name"),
+      stage: root.querySelector(".st-stage"),
+      bar: [...root.querySelectorAll(".st-bar i")],
+      time: root.querySelector(".st-time"),
+    };
+    this.lastKey = null;
+  }
+
+  render(state, now = Date.now()) {
+    const t = state?.startedAt != null ? now - state.startedAt : -1;
+    const stages = state?.stages ?? [];
+    this.root.hidden = t < 0 || !stages.length;
+    if (this.root.hidden) {
+      this.lastKey = null;
+      return;
+    }
+    this.root.style.setProperty("--scale", (state.scale ?? 2) * this.zoom);
+
+    let cur = stages[0];
+    const reached = new Set();
+    for (const st of stages) {
+      if (st[0] > t) break;
+      cur = st;
+      reached.add(st[1]);
+    }
+    const [ms, idx] = cur;
+    const key = `${state.startedAt}:${idx}`;
+    if (key !== this.lastKey) {
+      // 단계 색: 네더(1~3) 주황, 엔드 유적~엔드(4~6) 보라, 완료 초록
+      this.root.dataset.tone = idx === DONE ? "done" : idx >= 4 ? "end" : idx >= 1 ? "nether" : "start";
+      this.el.name.textContent = `${state.player?.nickname ?? "?"} #${state.player?.rank ?? "-"}`;
+      this.el.stage.textContent = STAGES[idx];
+      this.el.bar.forEach((i, n) => i.classList.toggle("on", reached.has(n)));
+      if (this.lastKey) {
+        this.root.classList.remove("flash");
+        void this.root.offsetWidth;
+        this.root.classList.add("flash");
+      }
+      this.lastKey = key;
+    }
+    this.el.time.textContent = fmt(idx === DONE ? ms : t);
+  }
+}
+
+/** 마인크래프트 채팅창 모양의 오버레이. 시각이 된 메시지만 아래에서부터 쌓이고 10초 뒤 사라진다 (keepChat이면 계속 남음). */
 export class ChatView {
   /** zoom: 미리보기처럼 작은 곳에 그릴 때 state.scale 에 곱할 배율 */
   constructor(root, zoom = 1) {
@@ -124,7 +191,7 @@ export class ChatView {
   render(state, now = Date.now()) {
     this.root.style.setProperty("--scale", (state?.scale ?? 2) * this.zoom);
     // 재시작하면 줄을 처음부터 다시 쌓도록 startedAt 도 키에 넣는다
-    const key = state && JSON.stringify([state.player?.uuid, state.opponent?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt]);
+    const key = state && JSON.stringify([state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt, state.showAdvancements]);
     if (key !== this.cacheKey) {
       this.cacheKey = key;
       this.msgs = state ? chatMessages(state) : [];
@@ -136,7 +203,9 @@ export class ChatView {
       const t = now - state.startedAt;
       this.msgs.forEach((msg, i) => {
         const age = t - msg.at;
-        if (age < 0 || age >= CHAT_LIFE_MS) return;
+        if (age < 0) return;
+        if (state.keepChat) return visible.push([i, 1]);
+        if (age >= CHAT_LIFE_MS) return;
         // 마인크래프트 공식: 마지막 1초 동안 흐려짐
         const a = Math.min(1, Math.max(0, (1 - age / CHAT_LIFE_MS) * 10));
         visible.push([i, a * a]);
@@ -166,6 +235,8 @@ export class ChatView {
       }
       node.style.opacity = opacity;
     }
+    // 채팅 칸이 꽉 차면 위로 넘친 줄이 반쯤 잘려 보이므로, 다 안 들어가는 줄은 숨긴다
+    for (const node of this.nodes.values()) node.style.visibility = node.offsetTop < 0 ? "hidden" : "";
   }
 
   clear() {

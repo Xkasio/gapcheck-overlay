@@ -34,15 +34,18 @@
       <div class="card">
         <h2>타임라인 <span id="ev-count" class="muted"></span></h2>
         <label class="check"><input type="checkbox" id="hide-minor" checked> 사소한 이벤트 숨기기</label>
-        <label class="check"><input type="checkbox" id="show-opponent" checked> 상대 현황 표시</label>
         <ol class="timeline" id="timeline"></ol>
       </div>
     </section>
 
     <section class="col">
-      <div class="card sticky">
+      <div class="card">
         <h2>오버레이 <span id="timer" class="timer">0:00.0</span></h2>
-        <div id="preview" class="preview"></div>
+        <div class="preview"><div id="preview-status"></div><div id="preview-chat"></div></div>
+        <div class="toggles">
+          <label class="check"><input type="checkbox" id="show-adv"> 채팅에 발전 과제 표시</label>
+          <label class="check"><input type="checkbox" id="keep-chat"> 채팅 사라지지 않게</label>
+        </div>
 
         <div class="controls">
           <label>카운트다운
@@ -58,16 +61,25 @@
         </div>
         <label class="range">채팅 크기 <input type="range" id="scale" min="1" max="4" step="0.25"><output id="scale-out"></output></label>
         <div class="controls app-only" hidden>
-          <button id="fullscreen">⛶ 마인크래프트 전체화면 <kbd>F6</kbd></button>
-          <button id="edit-overlay">✥ 오버레이 위치 <kbd>F7</kbd></button>
+          <button id="fullscreen">⛶ 마인크래프트 전체화면 <kbd data-key="fullscreen"></kbd></button>
+          <button id="edit-overlay">✥ 오버레이 위치 <kbd data-key="editOverlay"></kbd></button>
         </div>
         <p class="hint app-only" hidden>
-          게임 중 단축키: <kbd>F8</kbd> 시작/재시작 · <kbd>F9</kbd> 정지 · <kbd>F6</kbd> 전체화면 · <kbd>F7</kbd> 오버레이 위치<br>
-          게임의 <kbd>F11</kbd> 전체화면은 다른 창을 가리므로 오버레이가 안 보입니다. 대신 <kbd>F6</kbd>을 쓰세요
-          (화면 전체를 덮는 테두리 없는 창으로 바꿉니다).
+          게임의 <kbd>F11</kbd> 전체화면은 다른 창을 가리므로 오버레이가 안 보입니다. 대신
+          <kbd data-key="fullscreen"></kbd>(전체화면 단축키)을 쓰세요. 화면 전체를 덮는 테두리 없는 창으로 바꿉니다.
         </p>
         <p class="hint browser-only">
           브라우저로 열린 상태입니다. 게임 위에 뜨는 투명 오버레이와 단축키는 GapCheck Overlay 앱에서 사용할 수 있습니다.
+        </p>
+      </div>
+
+      <div class="card app-only" hidden>
+        <h2>단축키 <span class="muted">게임 중에도 동작</span></h2>
+        <ul class="keybinds" id="keybinds"></ul>
+        <p class="hint">
+          글자·숫자·스페이스처럼 게임에서 쓰는 키를 지정하면 게임에서 그 키가 안 먹힙니다.
+          <kbd>F</kbd>키나 <kbd>Ctrl</kbd>/<kbd>Alt</kbd>/<kbd>Shift</kbd> 조합을 추천합니다.
+          <button id="reset-keys" class="link">기본값으로</button>
         </p>
       </div>
     </section>

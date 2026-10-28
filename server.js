@@ -31,7 +31,7 @@ const TYPES = {
 
 // ---------- 공유 상태 ----------
 // { matchId, seedType, player:{uuid,nickname,rank,elo}, events:[[ms,type]], startedAt, countdown, scale }
-let state = { events: [], startedAt: null, countdown: 3, scale: 2 };
+let state = { events: [], stages: [], startedAt: null, countdown: 3, scale: 2, showAdvancements: true, keepChat: false };
 try {
   state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null };
 } catch { /* 처음 실행 */ }
@@ -51,6 +51,7 @@ function setState(patch) {
 const control = {
   start: () => state.events.length && setState({ startedAt: Date.now() + (Number(state.countdown) || 0) * 1000 }),
   stop: () => setState({ startedAt: null }),
+  toggle: (key) => setState({ [key]: !state[key] }),
 };
 
 // ---------- gapcheck.gg 중계 ----------
@@ -142,7 +143,7 @@ async function handle(req, res) {
     if (hook) {
       if (!hooks[hook[1]]) return sendJson(res, 404, { ok: false, message: "앱(start.bat / 설치판)에서만 됩니다." });
       try {
-        return sendJson(res, 200, (await hooks[hook[1]]()) ?? { ok: true });
+        return sendJson(res, 200, (await hooks[hook[1]](await readJson(req))) ?? { ok: true });
       } catch (e) {
         return sendJson(res, 500, { ok: false, message: e.message });
       }
