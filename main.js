@@ -300,6 +300,12 @@ async function init() {
     });
     return r.canceled ? { ok: true } : { ok: true, path: r.filePaths[0] };
   };
+  // 리플레이 폴더를 탐색기로 열기 (파일을 미리 넣어 둘 수 있게)
+  server.hooks.openReplayFolder = async () => {
+    fs.mkdirSync(server.REPLAYS, { recursive: true });
+    const err = await shell.openPath(server.REPLAYS);
+    return err ? { ok: false, message: err } : { ok: true };
+  };
   server.hooks.installUpdate = () => {
     if (update.status === "downloading") {
       update = { ...update, installing: true }; // 다 받으면 update-downloaded 에서 설치
