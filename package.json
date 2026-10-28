@@ -17,7 +17,7 @@
     "electron-builder": "25.1.8"
   },
   "productName": "GapCheck Overlay",
-  "description": "gapcheck.gg 매치 타임라인을 마인크래프트 채팅처럼 게임 위에 띄워 주는 비공식 오버레이",
+  "description": "gapcheck.gg 매치 타임라인을 마인크래프트 채팅처럼 게임 위에 띄워 주는 오버레이",
   "author": "Xkasio",
   "build": {
     "appId": "gg.gapcheck.overlay.unofficial",
