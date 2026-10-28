@@ -170,6 +170,7 @@ export class StatusView {
       return;
     }
     this.root.style.setProperty("--scale", (state.scale ?? 2) * this.zoom);
+    this.root.style.setProperty("--bg-a", state.bgOpacity ?? 0.5);
 
     let cur = stages[0];
     const reached = new Set();
@@ -210,6 +211,9 @@ export class ChatView {
 
   render(state, now = Date.now()) {
     this.root.style.setProperty("--scale", (state?.scale ?? 2) * this.zoom);
+    // 설정: 배경 투명도(줄 뒤 검은 배경), 매치 로그 투명도(채팅 전체)
+    this.root.style.setProperty("--bg-a", state?.bgOpacity ?? 0.5);
+    this.root.style.opacity = state?.chatOpacity ?? 1;
     // 재시작하면 줄을 처음부터 다시 쌓도록 startedAt 도 키에 넣는다
     const key = state && JSON.stringify([state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt,
       state.showAdvancements, state.showTimes, state.showDelta, state.mine?.length]);
