@@ -106,7 +106,7 @@ function showFacts(on) {
   $("#facts").hidden = !on;
   $("#reveal").innerHTML = on
     ? "매치 정보 숨기기"
-    : `매치 정보 보기 <span class="muted">(시드 유형 · 바스티온 · 기록 · 날짜 · 엔드 타워)</span>`;
+    : "매치 정보 보기";
 }
 $("#reveal").addEventListener("click", () => showFacts($("#facts").hidden));
 
