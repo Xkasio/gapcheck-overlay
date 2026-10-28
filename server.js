@@ -13,12 +13,15 @@ const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
 const { LogWatcher, detectLogs } = require("./logwatch");
+const { loadReplay } = require("./replay");
 
 const BASE_PORT = Number(process.env.PORT) || 5174;
 const PUBLIC = path.join(__dirname, "public");
 // 배포판(Electron)은 main.js가 사용자 폴더(AppData)로 지정한다
 const DATA = process.env.GAPCHECK_DATA || path.join(__dirname, "..", "data");
 const CACHE = path.join(DATA, "matches");
+// 리플레이(.rrf)를 넣어 두는 폴더 (앱: %APPDATA%\GapCheck Overlay\replays)
+const REPLAYS = path.join(DATA, "..", "replays");
 const STATE_FILE = path.join(DATA, "overlay-state.json");
 const UPSTREAM = "https://gapcheck.gg/api";
 const TYPES = {
@@ -188,6 +191,16 @@ async function handle(req, res) {
 
   // 앱 여부 + 버전·업데이트 상태 (hooks.info 는 main.js가 등록)
   if (pathname === "/api/logs/detect") return sendJson(res, 200, { logs: detectLogs() });
+  // 리플레이 파일을 매치 정보로 (gapcheck.gg 매치와 같은 모양)
+  if (pathname === "/api/replay") {
+    const file = new URL(req.url, "http://x").searchParams.get("path") ?? "";
+    if (!/\.(rrf|zip)$/i.test(file) || !fs.existsSync(file)) return sendJson(res, 404, { error: "리플레이 파일을 찾지 못했습니다." });
+    try {
+      return sendJson(res, 200, { match: loadReplay(file) });
+    } catch (e) {
+      return sendJson(res, 400, { error: e.message });
+    }
+  }
   if (pathname === "/api/app") return sendJson(res, 200, { app: Object.keys(hooks).length > 0, ...(hooks.info?.() ?? {}) });
   serveFile(res, PUBLIC, pathname === "/" ? "index.html" : pathname.slice(1));
 }
@@ -229,7 +242,7 @@ async function listenPort({ waitForBasePortMs = 0 } = {}) {
   throw new Error("사용 가능한 포트를 찾지 못했습니다.");
 }
 
-module.exports = { start, control, hooks, onChange, getState: () => state };
+module.exports = { start, control, hooks, onChange, getState: () => state, REPLAYS };
 
 if (require.main === module) {
   start().then((port) => {
