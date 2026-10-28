@@ -37,7 +37,7 @@ const TYPES = {
 // mine = 이번 시작 이후 내가(로그로 감지) 달성한 발전 과제와 시각
 let state = {
   events: [], stages: [], startedAt: null, countdown: 3, scale: 2,
-  showAdvancements: true, keepChat: false, showTimes: true, showDelta: true, autoStart: true, alwaysOnTop: true, logPath: "", log: null, mine: [],
+  showAdvancements: true, keepChat: false, showTimes: true, showDelta: true, autoStart: true, alwaysOnTop: true, bgOpacity: 0.5, chatOpacity: 1, logPath: "", log: null, mine: [],
 };
 try {
   state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null, mine: [], log: null };
