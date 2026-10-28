@@ -74,6 +74,8 @@ function renderMatch() {
     ["엔드 타워", (m.endTowers ?? []).join(" · ") || "-"],
   ];
   $("#facts").innerHTML = facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("");
+  // 스포일러 방지: 매치를 새로 불러올 때마다 다시 숨김
+  showFacts(false);
 
   // gapcheck.gg와 같은 구성: 오버월드/엔드(같은 시드), 네더, RNG(+ 일치율)
   const rng = m.rngSeed ?? {};
@@ -94,6 +96,14 @@ function renderMatch() {
       </button>`)
     .join("");
 }
+
+function showFacts(on) {
+  $("#facts").hidden = !on;
+  $("#reveal").innerHTML = on
+    ? "매치 정보 숨기기"
+    : `매치 정보 보기 <span class="muted">(시드 유형 · 바스티온 · 기록 · 날짜 · 엔드 타워)</span>`;
+}
+$("#reveal").addEventListener("click", () => showFacts($("#facts").hidden));
 
 $("#seeds").addEventListener("click", async (e) => {
   const btn = e.target.closest(".seed");
@@ -153,6 +163,7 @@ async function refreshAppInfo() {
   document.querySelectorAll(".browser-only").forEach((el) => (el.hidden = info.app));
   if (info.version) $("#version").textContent = `v${info.version}`;
   renderUpdate(info.update);
+  renderAdmin(info);
   if (info.keybinds && !capturing) setKeybinds(info.keybinds);
 }
 refreshAppInfo();
@@ -168,6 +179,22 @@ function renderUpdate(u) {
   el.hidden = !msg;
   if (msg) el.innerHTML = msg();
 }
+// 관리자 권한 경고 (닫으면 이번 실행 동안은 다시 안 띄움)
+let adminDismissed = false;
+try { adminDismissed = sessionStorage.getItem("adminDismissed") === "1"; } catch { /* 저장소 막힘 */ }
+function renderAdmin(info) {
+  $("#admin-warning").hidden = !info.app || info.admin !== false || adminDismissed;
+}
+$("#relaunch-admin").addEventListener("click", async () => {
+  setStatus("관리자 권한으로 다시 실행합니다. Windows 확인 창에서 '예'를 누르세요.");
+  await appAction("relaunchAsAdmin");
+});
+$("#dismiss-admin").addEventListener("click", () => {
+  adminDismissed = true;
+  try { sessionStorage.setItem("adminDismissed", "1"); } catch { /* 저장소 막힘 */ }
+  $("#admin-warning").hidden = true;
+});
+
 $("#update").addEventListener("click", (e) => {
   if (e.target.id === "install-update") postJson("/api/app/installUpdate");
 });

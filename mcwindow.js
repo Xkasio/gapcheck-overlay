@@ -4,6 +4,7 @@
 const koffi = require("koffi");
 
 const user32 = koffi.load("user32.dll");
+const shell32 = koffi.load("shell32.dll");
 
 const RECT = koffi.struct("RECT", { left: "int32", top: "int32", right: "int32", bottom: "int32" });
 const MONITORINFO = koffi.struct("MONITORINFO", { cbSize: "uint32", rcMonitor: RECT, rcWork: RECT, dwFlags: "uint32" });
@@ -20,6 +21,14 @@ const SetWindowPos = user32.func("bool __stdcall SetWindowPos(void *hwnd, void *
 const GetWindowRect = user32.func("bool __stdcall GetWindowRect(void *hwnd, _Out_ RECT *rect)");
 const MonitorFromWindow = user32.func("void * __stdcall MonitorFromWindow(void *hwnd, uint32 flags)");
 const GetMonitorInfoW = user32.func("bool __stdcall GetMonitorInfoW(void *monitor, _Inout_ MONITORINFO *info)");
+const IsUserAnAdmin = shell32.func("bool __stdcall IsUserAnAdmin()");
+const ShellExecuteW = shell32.func("intptr __stdcall ShellExecuteW(void *hwnd, str16 op, str16 file, str16 params, str16 dir, int show)");
+
+/** 관리자 권한으로 실행 중인지. 게임이 관리자 권한이면 이 프로그램도 관리자여야 전역 단축키·창 전환이 먹힌다 */
+const isElevated = () => IsUserAnAdmin();
+
+/** 관리자 권한으로 프로그램 실행 (UAC 확인 창). 확인 창에서 거절하면 false */
+const runAsAdmin = (file, params) => Number(ShellExecuteW(null, "runas", file, params, null, 1)) > 32;
 
 const GWL_STYLE = -16;
 const WS_CAPTION = 0x00c00000;
@@ -86,4 +95,4 @@ function toggleBorderless(win = findMinecraftWindows()[0]) {
   return { ok: true, mode: "windowed", title };
 }
 
-module.exports = { toggleBorderless, findMinecraftWindows };
+module.exports = { toggleBorderless, findMinecraftWindows, isElevated, runAsAdmin };

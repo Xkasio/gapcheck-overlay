@@ -11,6 +11,11 @@
     <h1>GapCheck <span>타임라인 오버레이</span> <small id="version"></small></h1>
   </header>
   <div id="update" class="update" hidden></div>
+  <div id="admin-warning" class="update warn" hidden>
+    ⚠ <b>관리자 권한으로 실행중이지 않으면 일부 기능이 작동하지 않을 수 있습니다.</b>
+    <button id="relaunch-admin" class="primary">관리자 권한으로 다시 실행</button>
+    <button id="dismiss-admin" class="link">닫기</button>
+  </div>
 
   <form id="search" class="search">
     <input id="query" placeholder="매치 ID 또는 https://gapcheck.gg/m/13448787/ranked" autocomplete="off" autofocus>
@@ -22,7 +27,8 @@
     <section class="col">
       <div class="card">
         <h2>매치 <span id="m-id"></span></h2>
-        <dl class="facts" id="facts"></dl>
+        <button id="reveal" class="reveal">매치 정보 보기 <span class="muted">(시드 유형 · 바스티온 · 기록 · 날짜 · 엔드 타워)</span></button>
+        <dl class="facts" id="facts" hidden></dl>
         <div class="seeds" id="seeds"></div>
       </div>
 

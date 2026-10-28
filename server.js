@@ -164,7 +164,16 @@ function listen(port) {
 }
 
 /** 서버 시작. 127.0.0.1에만 열어서 같은 PC에서만 접속 가능. 포트가 사용 중이면 다음 번호로. 실제 포트를 돌려준다 */
-async function start() {
+async function start({ waitForBasePortMs = 0 } = {}) {
+  // 기본 포트가 곧 비는 경우(재실행)에는 잠깐 기다린다
+  for (const until = Date.now() + waitForBasePortMs; Date.now() < until;) {
+    try {
+      return await listen(BASE_PORT);
+    } catch (e) {
+      if (e.code !== "EADDRINUSE") throw e;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
   for (let port = BASE_PORT; port < BASE_PORT + 20; port++) {
     try {
       const p = await listen(port);

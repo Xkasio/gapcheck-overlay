@@ -142,6 +142,25 @@ function setupAutoUpdate() {
   setInterval(check, 6 * 60 * 60 * 1000);
 }
 
+// ---------- 관리자 권한 ----------
+const elevated = mcwindow ? mcwindow.isElevated() : true;
+
+/** 관리자 권한으로 다시 실행. UAC 확인 창에서 거절하면 지금 프로그램을 그대로 둔다 */
+function relaunchAsAdmin() {
+  if (!mcwindow) return { ok: false, message: "Windows에서만 지원합니다." };
+  const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+  // --relaunched: 새 프로그램이 이 프로그램의 포트가 비기를 잠깐 기다리게
+  const params = [app.isPackaged ? "" : `"${app.getAppPath()}"`, "--relaunched"].filter(Boolean).join(" ");
+  // 새 프로그램이 "이미 실행 중"으로 바로 꺼지지 않게 잠금을 먼저 푼다
+  app.releaseSingleInstanceLock();
+  if (!mcwindow.runAsAdmin(exe, params)) {
+    app.requestSingleInstanceLock();
+    return { ok: false, message: "관리자 권한 실행이 취소되었습니다." };
+  }
+  setTimeout(() => app.quit(), 100);
+  return { ok: true };
+}
+
 // ---------- 단축키 ----------
 function loadKeybinds() {
   try {
@@ -196,7 +215,8 @@ function setKeybind({ action, accelerator }) {
 
 async function init() {
   try {
-    port = await server.start();
+    // 관리자 권한으로 다시 실행된 경우, 이전 프로그램이 포트를 놓을 때까지 기다려 같은 주소(OBS)를 유지
+    port = await server.start({ waitForBasePortMs: process.argv.includes("--relaunched") ? 5000 : 0 });
   } catch (e) {
     console.error(e);
     app.quit();
@@ -204,7 +224,7 @@ async function init() {
   }
   server.hooks.fullscreen = toggleFullscreen;
   server.hooks.editOverlay = toggleEdit;
-  server.hooks.info = () => ({ version: app.getVersion(), update, keybinds });
+  server.hooks.info = () => ({ version: app.getVersion(), update, keybinds, admin: elevated });
   server.hooks.setKeybind = setKeybind;
   server.hooks.resetKeybinds = () => {
     keybinds = { ...DEFAULT_KEYS };
@@ -218,6 +238,7 @@ async function init() {
     else registerKeys();
     return { ok: true };
   };
+  server.hooks.relaunchAsAdmin = relaunchAsAdmin;
   server.hooks.installUpdate = () => {
     if (update.status !== "ready") return { ok: false, message: "받아 둔 업데이트가 없습니다." };
     // 설치 화면 없이 조용히 설치하고 다시 실행
