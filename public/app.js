@@ -19,6 +19,11 @@ subscribeState((s) => {
   $("#countdown").value = String(s.countdown ?? 3);
   $("#scale").value = s.scale ?? 2;
   $("#scale-out").textContent = `${s.scale ?? 2}x`;
+  // 투명도는 불투명한 정도(%)로 표시: 0% = 완전 투명
+  $("#bg-opacity").value = s.bgOpacity ?? 0.5;
+  $("#bg-opacity-out").textContent = `${Math.round((s.bgOpacity ?? 0.5) * 100)}%`;
+  $("#chat-opacity").value = s.chatOpacity ?? 1;
+  $("#chat-opacity-out").textContent = `${Math.round((s.chatOpacity ?? 1) * 100)}%`;
   $("#show-adv").checked = s.showAdvancements !== false;
   $("#keep-chat").checked = !!s.keepChat;
   $("#show-times").checked = s.showTimes !== false;
@@ -156,6 +161,9 @@ $("#start").addEventListener("click", () => postJson("/api/start"));
 $("#stop").addEventListener("click", () => postJson("/api/stop"));
 $("#countdown").addEventListener("change", (e) => postJson("/api/state", { countdown: Number(e.target.value) }));
 $("#scale").addEventListener("input", (e) => postJson("/api/state", { scale: Number(e.target.value) }));
+$("#bg-opacity").addEventListener("input", (e) => postJson("/api/state", { bgOpacity: Number(e.target.value) }));
+$("#chat-opacity").addEventListener("input", (e) => postJson("/api/state", { chatOpacity: Number(e.target.value) }));
+$("#open-settings").addEventListener("click", () => $("#settings").showModal());
 $("#show-adv").addEventListener("change", (e) => postJson("/api/state", { showAdvancements: e.target.checked }));
 $("#keep-chat").addEventListener("change", (e) => postJson("/api/state", { keepChat: e.target.checked }));
 $("#show-times").addEventListener("change", (e) => postJson("/api/state", { showTimes: e.target.checked }));
@@ -253,10 +261,6 @@ async function appAction(name, body) {
   return r;
 }
 
-$("#fullscreen").addEventListener("click", async () => {
-  const r = await appAction("fullscreen");
-  if (r.ok) setStatus(r.mode === "borderless" ? `${r.title}: 전체화면(테두리 없음)으로 바꿨습니다.` : `${r.title}: 창 모드로 되돌렸습니다.`);
-});
 $("#edit-overlay").addEventListener("click", async () => {
   const r = await appAction("editOverlay");
   if (r.ok) setStatus(r.editing ? "현황 창과 채팅 창을 각각 드래그해서 옮긴 뒤 버튼이나 단축키를 다시 누르세요." : "현황·채팅 위치를 고정했습니다.");
@@ -266,7 +270,6 @@ $("#edit-overlay").addEventListener("click", async () => {
 const KEY_ACTIONS = [
   ["start", "시작 / 재시작"],
   ["stop", "정지"],
-  ["fullscreen", "마인크래프트 전체화면 전환"],
   ["editOverlay", "오버레이 위치 옮기기"],
   ["toggleAdvancements", "채팅 발전 과제 켜기/끄기"],
   ["toggleKeepChat", "채팅 유지 켜기/끄기"],
