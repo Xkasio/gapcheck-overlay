@@ -267,7 +267,7 @@ const KEY_ACTIONS = [
   ["fullscreen", "마인크래프트 전체화면 전환"],
   ["editOverlay", "오버레이 위치 옮기기"],
   ["toggleAdvancements", "채팅 발전 과제 켜기/끄기"],
-  ["toggleKeepChat", "채팅 사라지지 않게 켜기/끄기"],
+  ["toggleKeepChat", "채팅 유지 켜기/끄기"],
 ];
 let capturing = null; // 키 입력을 기다리는 동작 이름
 
