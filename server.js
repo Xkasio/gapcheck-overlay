@@ -12,7 +12,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
-const { LogWatcher, detectLogs } = require("./logwatch");
+const { LogWatcher, detectLogs, resolveLogPath } = require("./logwatch");
 const { loadReplay } = require("./replay");
 
 const BASE_PORT = Number(process.env.PORT) || 5174;
@@ -20,8 +20,18 @@ const PUBLIC = path.join(__dirname, "public");
 // 배포판(Electron)은 main.js가 사용자 폴더(AppData)로 지정한다
 const DATA = process.env.GAPCHECK_DATA || path.join(__dirname, "..", "data");
 const CACHE = path.join(DATA, "matches");
-// 리플레이(.rrf)를 넣어 두는 폴더 (앱: %APPDATA%\GapCheck Overlay\replays)
-const REPLAYS = path.join(DATA, "..", "replays");
+/**
+ * 랭크드 리플레이 폴더: 마인크래프트 인스턴스의 .minecraft\mcsrranked\replay
+ * 연결된 로그(…\.minecraft\logs\latest.log)의 인스턴스를 먼저 보고, 없으면 찾은 인스턴스 중 처음 것
+ */
+function replayDir() {
+  const logs = [resolveLogPath(state.logPath), ...detectLogs().map((l) => l.path)].filter(Boolean);
+  for (const log of logs) {
+    const dir = path.join(path.dirname(path.dirname(log)), "mcsrranked", "replay");
+    if (fs.existsSync(dir)) return dir;
+  }
+  return null;
+}
 const STATE_FILE = path.join(DATA, "overlay-state.json");
 const UPSTREAM = "https://gapcheck.gg/api";
 const TYPES = {
@@ -242,7 +252,7 @@ async function listenPort({ waitForBasePortMs = 0 } = {}) {
   throw new Error("사용 가능한 포트를 찾지 못했습니다.");
 }
 
-module.exports = { start, control, hooks, onChange, getState: () => state, REPLAYS };
+module.exports = { start, control, hooks, onChange, getState: () => state, replayDir };
 
 if (require.main === module) {
   start().then((port) => {
