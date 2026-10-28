@@ -53,6 +53,8 @@
           <label class="check"><input type="checkbox" id="keep-chat"> 채팅 유지</label>
           <label class="check"><input type="checkbox" id="show-times"> 타임라인 표시</label>
           <label class="check"><input type="checkbox" id="show-delta"> 내 기록과 비교</label>
+          <label class="check"><input type="checkbox" id="auto-start"> 자동 시작 <span class="muted">(게임 로그)</span></label>
+          <label class="check app-only" hidden><input type="checkbox" id="always-on-top"> 항상 위에 표시</label>
         </div>
 
         <div class="controls">
@@ -95,7 +97,8 @@
         <p class="log-status" id="log-status">연결 안 됨</p>
         <p class="hint">
           게임 로그에서 내 발전 과제를 실시간으로 읽어, 따라가는 플레이어 기록과의 차이를 채팅 뒤에 붙입니다.
-          시작(<kbd data-key="start">F8</kbd>)은 내 런을 시작할 때 누르세요. 그 시점부터의 시간으로 비교합니다.
+          "자동 시작"을 켜면 매치가 시작되는 순간(카운트다운이 끝날 때) 타이머가 저절로 시작하고, 다음 매치를 준비할 때 멈춥니다.
+          끄면 내 런을 시작할 때 <kbd data-key="start">F8</kbd>을 누르세요.
         </p>
       </div>
 

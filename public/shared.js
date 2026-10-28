@@ -116,9 +116,9 @@ function chatMessages(state) {
   // 카운트다운: 1초마다 한 줄씩 (예: 3초 → 3, 2, 1, 시작!)
   for (let k = state.countdown ?? 0; k > 0; k--) {
     const text = k === state.countdown ? `[GapCheck] ${name}의 타임라인 시작까지 ${k}초` : `[GapCheck] ${k}초`;
-    msgs.push({ at: -k * 1000, parts: [[text, "c-gray"]] });
+    msgs.push({ at: -k * 1000, system: true, parts: [[text, "c-gray"]] });
   }
-  msgs.push({ at: 0, parts: [[`[GapCheck] 시작! (${name} #${state.player?.rank ?? "-"})`, "c-green"]] });
+  msgs.push({ at: 0, system: true, parts: [[`[GapCheck] 시작! (${name} #${state.player?.rank ?? "-"})`, "c-green"]] });
 
   for (const [ms, type] of state.events ?? []) {
     if (NO_CHAT.has(type)) continue;
@@ -225,7 +225,8 @@ export class ChatView {
       this.msgs.forEach((msg, i) => {
         if (t < msg.at) return;
         const age = t - (msg.showAt ?? msg.at);
-        if (state.keepChat) return visible.push([i, 1]);
+        // 채팅 유지: 발전 과제 줄만 남기고, 카운트다운·시작 안내는 원래대로 사라짐
+        if (state.keepChat && !msg.system) return visible.push([i, 1]);
         if (age >= CHAT_LIFE_MS) return;
         // 마인크래프트 공식: 마지막 1초 동안 흐려짐
         const a = Math.min(1, Math.max(0, (1 - age / CHAT_LIFE_MS) * 10));

@@ -4,6 +4,12 @@
 //   [00:05:36] [main/INFO]: [CHAT] dusue이(가) [철이 철철 넘쳐] 발전 과제를 달성했습니다   <- 다른 플레이어
 //   [18:26:59] [Server thread/INFO]: chomchome has made the advancement [Stone Age]          <- 영어
 // 로그 인코딩은 인스턴스마다 UTF-8 이거나 CP949(한국어 Windows 기본) 라서 줄마다 판별한다.
+//
+// 런 시작 감지 (타이머 자동 시작):
+//   [WorldCreator] Match initializing...        새 매치 준비 -> 초기화, 시작 대기
+//   StateOutput State: generating,0              새 월드 생성 -> 시작 대기
+//   Re-activating match recording                랭크드 매치 시작(카운트다운 끝) -> 시작
+//   StateOutput State: inworld,unpaused          (랭크드가 아닌 월드) 대기 중 첫 플레이 -> 시작
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -89,11 +95,14 @@ function detectLogs() {
  * latest.log 를 따라 읽는다. 새로 붙은 줄만 본다 (켜기 전 기록은 무시).
  * onAdvancement({ player, title, type, mine }) — mine: 이 PC의 플레이어 것인지
  * onInfo({ path, user, error }) — 연결 상태
+ * onRun("reset" | "start") — 새 매치 준비 / 런 시작
  */
 class LogWatcher {
-  constructor({ onAdvancement, onInfo }) {
+  constructor({ onAdvancement, onInfo, onRun }) {
     this.onAdvancement = onAdvancement;
     this.onInfo = onInfo;
+    this.onRun = onRun;
+    this.armed = false; // 새 월드/매치를 준비 중이라 다음 시작 신호를 기다리는 상태
     this.file = null;
     this.timer = null;
   }
@@ -171,11 +180,31 @@ class LogWatcher {
     }
     const parsed = parseLine(line);
     if (!parsed) return;
+    if (this.detectRun(parsed.text)) return;
     const adv = parseAdvancement(parsed.text);
     if (!adv) return;
     // 내 것: 닉네임이 같거나, 닉네임을 모르면 이 PC의 서버 스레드에서 나온 줄
     const mine = this.user ? adv.player === this.user : parsed.thread.startsWith("Server thread");
     this.onAdvancement({ ...adv, mine });
+  }
+
+  /** 런 시작/초기화 줄이면 처리하고 true */
+  detectRun(text) {
+    if (text.startsWith("[WorldCreator] Match initializing")) {
+      this.armed = true;
+      this.onRun("reset");
+      return true;
+    }
+    if (text.startsWith("StateOutput State: generating")) {
+      this.armed = true;
+      return true;
+    }
+    if (this.armed && (text === "Re-activating match recording" || text === "StateOutput State: inworld,unpaused")) {
+      this.armed = false;
+      this.onRun("start");
+      return true;
+    }
+    return false;
   }
 }
 

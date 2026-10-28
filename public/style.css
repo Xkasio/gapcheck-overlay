@@ -212,7 +212,6 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); tex
   background: rgba(0, 0, 0, .5);
   text-shadow: var(--u) var(--u) 0 #3f3f3f;
   white-space: pre-wrap;
-  max-width: calc(var(--u) * 330);
 }
 /* 마인크래프트 색 코드 §a §e §7 과 그 그림자(색의 1/4) */
 .chat .c-green { color: #55ff55; text-shadow: var(--u) var(--u) 0 #153f15; }

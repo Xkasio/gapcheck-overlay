@@ -37,7 +37,7 @@ const TYPES = {
 // mine = 이번 시작 이후 내가(로그로 감지) 달성한 발전 과제와 시각
 let state = {
   events: [], stages: [], startedAt: null, countdown: 3, scale: 2,
-  showAdvancements: true, keepChat: false, showTimes: true, showDelta: true, logPath: "", log: null, mine: [],
+  showAdvancements: true, keepChat: false, showTimes: true, showDelta: true, autoStart: true, alwaysOnTop: true, logPath: "", log: null, mine: [],
 };
 try {
   state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null, mine: [], log: null };
@@ -55,7 +55,12 @@ function setState(patch) {
   // 실행 중에만 의미 있는 값은 저장하지 않음
   const { startedAt, mine, log, ...saved } = state;
   fs.writeFileSync(STATE_FILE, JSON.stringify(saved), "utf-8");
+  for (const fn of listeners) fn(state);
 }
+
+// Electron(main.js)이 상태 변화를 보고 오버레이 창 크기 등을 맞출 때 쓴다
+const listeners = new Set();
+const onChange = (fn) => listeners.add(fn);
 
 const control = {
   start: () => state.events.length && setState({ startedAt: Date.now() + (Number(state.countdown) || 0) * 1000, mine: [] }),
@@ -66,10 +71,15 @@ const control = {
 // ---------- 마인크래프트 로그 ----------
 const watcher = new LogWatcher({
   onInfo: (info) => setState({ log: info && { ...state.log, ...info } }),
-  onAdvancement: ({ type, title, mine }) => {
+  // 자동 시작: 매치/월드가 시작되는 순간 타이머 시작 (카운트다운 없이), 새 매치 준비 때 정지
+  onRun: (what) => {
+    if (!state.autoStart || !state.events.length) return;
+    if (what === "start") setState({ startedAt: Date.now(), mine: [] });
+    else control.stop();
+  },
+  onAdvancement: ({ type, mine }) => {
     if (!mine || !type) return;
     const t = state.startedAt == null ? null : Date.now() - state.startedAt;
-    setState({ log: { ...state.log, last: { title, at: t } } });
     // 타이머가 돌고 있을 때, 같은 발전 과제는 처음 한 번만 기록
     if (t == null || t < 0 || state.mine.some(([, ty]) => ty === type)) return;
     setState({ mine: [...state.mine, [t, type]] });
@@ -217,7 +227,7 @@ async function listenPort({ waitForBasePortMs = 0 } = {}) {
   throw new Error("사용 가능한 포트를 찾지 못했습니다.");
 }
 
-module.exports = { start, control, hooks };
+module.exports = { start, control, hooks, onChange, getState: () => state };
 
 if (require.main === module) {
   start().then((port) => {

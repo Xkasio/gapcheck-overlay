@@ -23,6 +23,8 @@ subscribeState((s) => {
   $("#keep-chat").checked = !!s.keepChat;
   $("#show-times").checked = s.showTimes !== false;
   $("#show-delta").checked = s.showDelta !== false;
+  $("#auto-start").checked = s.autoStart !== false;
+  $("#always-on-top").checked = s.alwaysOnTop !== false;
   renderLog(s);
   if (first) {
     first = false;
@@ -158,6 +160,8 @@ $("#show-adv").addEventListener("change", (e) => postJson("/api/state", { showAd
 $("#keep-chat").addEventListener("change", (e) => postJson("/api/state", { keepChat: e.target.checked }));
 $("#show-times").addEventListener("change", (e) => postJson("/api/state", { showTimes: e.target.checked }));
 $("#show-delta").addEventListener("change", (e) => postJson("/api/state", { showDelta: e.target.checked }));
+$("#auto-start").addEventListener("change", (e) => postJson("/api/state", { autoStart: e.target.checked }));
+$("#always-on-top").addEventListener("change", (e) => postJson("/api/state", { alwaysOnTop: e.target.checked }));
 
 // ---------- 마인크래프트 로그 ----------
 function renderLog(s) {
@@ -168,9 +172,7 @@ function renderLog(s) {
   el.classList.toggle("error", !!log?.error);
   if (!log) return void (el.textContent = "연결 안 됨");
   if (log.error) return void (el.textContent = `⚠ ${log.error}`);
-  const last = log.last ? ` · 마지막 감지: [${log.last.title}]${log.last.at != null ? ` ${fmt(log.last.at)}` : " (시작 전)"}` : "";
-  const mine = s.mine?.length ? ` · 이번 런 ${s.mine.length}개` : "";
-  el.textContent = `● 연결됨 · 플레이어 ${log.user ?? "(확인 중)"}${mine}${last}`;
+  el.textContent = "● 연결됨";
 }
 
 // ...\instances\New_Instance2\.minecraft\logs\latest.log -> New_Instance2

@@ -41,21 +41,57 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(init);
 }
 
+/**
+ * 오버레이 창 크기는 "채팅 크기"(scale)에 맞춘다. 마인크래프트 GUI 1픽셀 = scale px
+ *   채팅: 너비 340, 높이 10줄(14) + 여백  /  현황: 같은 너비, 한 줄 높이
+ */
+function overlaySize(part, scale) {
+  const u = Number(scale) || 2;
+  return part === "status"
+    ? { width: Math.round(340 * u), height: Math.max(48, Math.round(24 * u)) }
+    : { width: Math.round(340 * u), height: Math.round(148 * u) };
+}
+
 function overlayBounds(part) {
   const { workArea } = screen.getPrimaryDisplay();
+  const size = overlaySize(part, server.getState().scale);
   // 기본: 현황은 화면 왼쪽 위, 채팅은 왼쪽 아래(마인크래프트 채팅창 자리)
   const fallback = part === "status"
-    ? { x: workArea.x + 8, y: workArea.y + 8, width: 640, height: 90 }
-    : { x: workArea.x + 8, y: workArea.y + workArea.height - 420, width: 720, height: 300 };
+    ? { x: workArea.x + 8, y: workArea.y + 8 }
+    : { x: workArea.x + 8, y: workArea.y + workArea.height - 120 - size.height };
+  let pos = fallback;
   try {
     const b = JSON.parse(fs.readFileSync(BOUNDS_FILES[part], "utf-8"));
     // 모니터 구성이 바뀌어 화면 밖이면 기본 위치로
     const onScreen = screen.getAllDisplays().some(({ bounds: d }) =>
-      b.x < d.x + d.width && b.x + b.width > d.x && b.y < d.y + d.height && b.y + b.height > d.y);
-    return onScreen ? b : fallback;
-  } catch {
-    return fallback;
+      b.x < d.x + d.width && b.x + size.width > d.x && b.y < d.y + d.height && b.y + size.height > d.y);
+    // 채팅은 아래쪽 끝을 기준으로 저장된 위치 유지 (예전 크기로 저장돼 있어도 아래 끝이 같은 자리)
+    if (onScreen) pos = { x: b.x, y: part === "chat" && b.height ? b.y + b.height - size.height : b.y };
+  } catch { /* 저장된 위치 없음 */ }
+  return { ...pos, ...size };
+}
+
+/** 채팅 크기가 바뀌면 창 크기도 맞춘다. 채팅은 아래 끝, 현황은 위 끝을 고정 */
+function resizeOverlays(scale) {
+  for (const [part, w] of Object.entries(overlays)) {
+    if (w.isDestroyed()) continue;
+    const old = w.getBounds();
+    const size = overlaySize(part, scale);
+    if (old.width === size.width && old.height === size.height) continue;
+    const y = part === "chat" ? old.y + old.height - size.height : old.y;
+    w.setBounds({ x: old.x, y, ...size });
+    fs.writeFileSync(BOUNDS_FILES[part], JSON.stringify(w.getBounds()));
   }
+}
+
+// "항상 위에 표시" 옵션 (기본 켬)
+const onTop = () => server.getState().alwaysOnTop !== false;
+
+function applyAlwaysOnTop() {
+  eachOverlay((w) => {
+    w.setAlwaysOnTop(onTop(), "screen-saver");
+    if (onTop()) w.moveTop();
+  });
 }
 
 function createOverlay(part) {
@@ -68,11 +104,11 @@ function createOverlay(part) {
     hasShadow: false,
     skipTaskbar: true,
     focusable: false,
-    alwaysOnTop: true,
+    alwaysOnTop: onTop(),
     show: false,
     webPreferences: { backgroundThrottling: false },
   });
-  overlay.setAlwaysOnTop(true, "screen-saver"); // 테두리 없는 전체화면 게임보다 위
+  overlay.setAlwaysOnTop(onTop(), "screen-saver"); // 테두리 없는 전체화면 게임보다 위
   overlay.setIgnoreMouseEvents(true); // 클릭은 게임으로 통과
   overlay.loadURL(`http://localhost:${port}/overlay.html?electron&part=${part}`);
   overlay.once("ready-to-show", () => overlay.showInactive());
@@ -116,7 +152,7 @@ function toggleEdit() {
 function toggleFullscreen() {
   if (!mcwindow) return { ok: false, message: "Windows에서만 지원합니다." };
   const r = mcwindow.toggleBorderless();
-  if (r.ok) eachOverlay((w) => w.moveTop());
+  if (r.ok && onTop()) eachOverlay((w) => w.moveTop());
   return r;
 }
 
@@ -266,16 +302,20 @@ async function init() {
 
   createOverlay("status");
   createOverlay("chat");
+  let lastOnTop = onTop();
+  server.onChange((s) => {
+    resizeOverlays(s.scale);
+    if (onTop() !== lastOnTop) {
+      lastOnTop = onTop();
+      applyAlwaysOnTop();
+    }
+  });
   createControl();
   setupAutoUpdate();
 
   // 게임이 창 순서를 바꿔도 오버레이가 계속 위에 있도록 주기적으로 다시 올린다
   setInterval(() => {
-    if (editing) return;
-    eachOverlay((w) => {
-      w.setAlwaysOnTop(true, "screen-saver");
-      w.moveTop();
-    });
+    if (!editing && onTop()) applyAlwaysOnTop();
   }, 2000);
 
   registerKeys();
