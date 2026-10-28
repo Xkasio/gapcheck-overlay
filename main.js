@@ -324,3 +324,4 @@ async function init() {
 }
 
 app.on("will-quit", () => globalShortcut.unregisterAll());
+//
