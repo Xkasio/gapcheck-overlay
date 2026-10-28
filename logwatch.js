@@ -11,6 +11,7 @@
 //   StateOutput State: generating,0              (매치 중이 아닐 때) 새 월드 생성 -> 시작 대기
 //   StateOutput State: inworld,unpaused          (랭크드가 아닌 월드) 대기 중 첫 플레이 -> 시작
 //   StateOutput State: title                     타이틀 화면 -> 매치 끝
+//   [CHAT] 닉네임가 매치에서 기권했습니다.        누가 기권하면 매치 끝 -> 타이머 정지
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -233,6 +234,14 @@ class LogWatcher {
     }
     if (text.startsWith("StateOutput State: generating")) {
       if (!this.inMatch) this.armed = true;
+      return true;
+    }
+    // 기권(나든 상대든)하면 매치가 끝나므로 정지
+    // 플레이어 채팅(<닉네임> ...)은 제외
+    if (!text.startsWith("<") && (/^.+가 매치에서 기권했습니다\.?$/.test(text) || / just forfeited the match$/.test(text))) {
+      this.inMatch = false;
+      this.armed = false;
+      this.onRun("forfeit");
       return true;
     }
     if (text === "StateOutput State: title") {
