@@ -131,7 +131,11 @@ function setupAutoUpdate() {
     update = portable ? { status: "available", version: i.version, url: RELEASES_URL } : { status: "downloading", version: i.version, percent: 0 };
   });
   autoUpdater.on("download-progress", (p) => (update = { ...update, percent: Math.round(p.percent) }));
-  autoUpdater.on("update-downloaded", (i) => (update = { status: "ready", version: i.version }));
+  autoUpdater.on("update-downloaded", (i) => {
+    // 받는 중에 업데이트 버튼을 눌렀으면 다 받자마자 설치
+    if (update.installing) return autoUpdater.quitAndInstall(true, true);
+    update = { status: "ready", version: i.version };
+  });
   autoUpdater.on("update-not-available", () => (update = { status: "latest" }));
   autoUpdater.on("error", (e) => {
     console.warn("업데이트 확인 실패:", e.message);
@@ -249,7 +253,12 @@ async function init() {
     return r.canceled ? { ok: true } : { ok: true, path: r.filePaths[0] };
   };
   server.hooks.installUpdate = () => {
-    if (update.status !== "ready") return { ok: false, message: "받아 둔 업데이트가 없습니다." };
+    if (update.status === "downloading") {
+      update = { ...update, installing: true }; // 다 받으면 update-downloaded 에서 설치
+      return { ok: true };
+    }
+    if (update.status !== "ready") return { ok: false, message: "받을 업데이트가 없습니다." };
+    update = { ...update, installing: true };
     // 설치 화면 없이 조용히 설치하고 다시 실행
     setImmediate(() => autoUpdater.quitAndInstall(true, true));
     return { ok: true };

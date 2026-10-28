@@ -167,7 +167,6 @@ kbd {
 .seed .pct { font-style: normal; font-size: 12px; color: var(--accent); margin-left: auto; white-space: nowrap; }
 .toggles { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 12px; }
 .toggles .check { margin: 0; color: var(--text); }
-.d-blue { color: #6f7bff; } .d-red { color: #ff6b6b; }
 .logrow { display: flex; gap: 8px; margin-bottom: 8px; }
 .logrow input, .logrow select { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: inherit; font-size: 13px; }
 .logrow input:focus { outline: none; border-color: var(--accent); }

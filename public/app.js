@@ -212,15 +212,16 @@ async function refreshAppInfo() {
 refreshAppInfo();
 setInterval(refreshAppInfo, 10000);
 
+// 새 버전이 있으면 한 줄 안내 + 버튼. 버튼: 설치판은 바로 설치(받는 중이면 다 받은 뒤), 포터블은 다운로드 페이지
 function renderUpdate(u) {
   const el = $("#update");
-  const msg = {
-    downloading: () => `새 버전 v${u.version} 내려받는 중... ${u.percent ?? 0}%`,
-    ready: () => `새 버전 v${u.version} 준비 완료. <button id="install-update" class="primary">지금 재시작해서 업데이트</button> (나중에 종료하면 자동 설치)`,
-    available: () => `새 버전 v${u.version}이(가) 나왔습니다. <a href="${u.url}" target="_blank" rel="noopener">다운로드 페이지 열기</a>`,
-  }[u?.status];
-  el.hidden = !msg;
-  if (msg) el.innerHTML = msg();
+  const has = ["downloading", "ready", "available"].includes(u?.status);
+  el.hidden = !has;
+  if (!has) return;
+  const label = u.installing ? "업데이트 중…" : "최신버전으로 업데이트";
+  const html = `최신버전이 있습니다. <button id="install-update" class="primary"${u.installing ? " disabled" : ""}>${label}</button>`;
+  if (el.innerHTML !== html) el.innerHTML = html;
+  el.dataset.url = u.url ?? "";
 }
 // 관리자 권한 경고 (닫으면 이번 실행 동안은 다시 안 띄움)
 let adminDismissed = false;
@@ -239,7 +240,9 @@ $("#dismiss-admin").addEventListener("click", () => {
 });
 
 $("#update").addEventListener("click", (e) => {
-  if (e.target.id === "install-update") postJson("/api/app/installUpdate");
+  if (e.target.id !== "install-update") return;
+  if (e.currentTarget.dataset.url) return void window.open(e.currentTarget.dataset.url);
+  appAction("installUpdate").then(refreshAppInfo);
 });
 
 async function appAction(name, body) {
