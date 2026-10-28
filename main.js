@@ -1,8 +1,7 @@
 // Electron 진입점 (개발: start.bat / npm start, 배포: 설치판·포터블 exe)
 // 중계 서버를 띄우고 제어 창과 오버레이 창 두 개를 연다.
 // 두 오버레이는 위치를 따로 정할 수 있다.
-// 전역 단축키. 기본: F6 마인크래프트 테두리없는 창 모드 전환,
-// F7 오버레이 위치 옮기기, F8 시작/재시작, F9 정지
+// 전역 단축키. 기본: F7 오버레이 위치 옮기기, F8 시작/재시작, F9 정지
 const { app, BrowserWindow, dialog, globalShortcut, screen, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
@@ -20,7 +19,7 @@ const BOUNDS_FILES = {
 };
 const KEYS_FILE = path.join(app.getPath("userData"), "keybinds.json");
 // 동작 이름 -> 단축키 (Electron accelerator 형식, 빈 문자열 = 없음)
-const DEFAULT_KEYS = { start: "F8", stop: "F9", fullscreen: "F6", editOverlay: "F7", toggleAdvancements: "", toggleKeepChat: "" };
+const DEFAULT_KEYS = { start: "F8", stop: "F9", editOverlay: "F7", toggleAdvancements: "", toggleKeepChat: "" };
 const ICON = path.join(__dirname, "build", "icon.png");
 const RELEASES_URL = "https://github.com/Xkasio/gapcheck-overlay/releases/latest";
 let port = null;
@@ -151,13 +150,6 @@ function toggleEdit() {
   return { ok: true, editing };
 }
 
-function toggleFullscreen() {
-  if (!mcwindow) return { ok: false, message: "Windows에서만 지원합니다." };
-  const r = mcwindow.toggleBorderless();
-  if (r.ok && onTop()) eachOverlay((w) => w.moveTop());
-  return r;
-}
-
 // 자동 업데이트 (GitHub Releases). 설치판은 백그라운드로 받아 두고 재시작/종료 시 설치,
 // 포터블은 스스로 교체할 수 없으므로 새 버전 알림만 띄운다.
 function setupAutoUpdate() {
@@ -213,7 +205,9 @@ function relaunchAsAdmin() {
 // ---------- 단축키 ----------
 function loadKeybinds() {
   try {
-    return { ...DEFAULT_KEYS, ...JSON.parse(fs.readFileSync(KEYS_FILE, "utf-8")) };
+    // 예전 버전에 있던 동작(전체화면 등)은 버린다
+    const saved = JSON.parse(fs.readFileSync(KEYS_FILE, "utf-8"));
+    return Object.fromEntries(Object.keys(DEFAULT_KEYS).map((k) => [k, saved[k] ?? DEFAULT_KEYS[k]]));
   } catch {
     return { ...DEFAULT_KEYS };
   }
@@ -222,7 +216,6 @@ function loadKeybinds() {
 const keyActions = () => ({
   start: server.control.start,
   stop: server.control.stop,
-  fullscreen: toggleFullscreen,
   editOverlay: toggleEdit,
   toggleAdvancements: () => server.control.toggle("showAdvancements"),
   toggleKeepChat: () => server.control.toggle("keepChat"),
@@ -271,7 +264,6 @@ async function init() {
     app.quit();
     return;
   }
-  server.hooks.fullscreen = toggleFullscreen;
   server.hooks.editOverlay = toggleEdit;
   server.hooks.info = () => ({ version: app.getVersion(), update, keybinds, admin: elevated });
   server.hooks.setKeybind = setKeybind;
