@@ -1,6 +1,6 @@
 import {
-  BASTION_TYPES, ChatView, SEED_TYPES, buildEvents, eventKind, eventName, fetchMatch, fmt,
-  parseId, postJson, subscribeState, winnerUuid,
+  BASTION, BASTION_TYPES, ChatView, OPPONENT, SEED_TYPES, buildEvents, eventKind, eventName, fetchMatch, fmt,
+  opponentOf, parseId, postJson, subscribeState, winnerUuid,
 } from "./shared.js";
 
 const $ = (s) => document.querySelector(s);
@@ -65,16 +65,19 @@ function renderMatch() {
   $("#m-id").textContent = `#${m.matchId}`;
   const facts = [
     ["시드 유형", SEED_TYPES[m.seedType] ?? m.seedType],
-    ["보루 잔해", BASTION_TYPES[m.bastionType] ?? m.bastionType ?? "-"],
+    [BASTION, BASTION_TYPES[m.bastionType] ?? m.bastionType ?? "-"],
     ["기록", fmt(m.finalTime ?? 0, 3)],
     ["날짜", (m.date ?? "").slice(0, 10)],
     ["엔드 타워", (m.endTowers ?? []).join(" · ") || "-"],
   ];
   $("#facts").innerHTML = facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("");
 
-  const seeds = [["오버월드", m.overworldSeed], ["네더", m.netherSeed], ["엔드", m.endSeed]];
+  // gapcheck.gg와 같은 구성: 오버월드/엔드(같은 시드), 네더, RNG(+ 일치율)
+  const rng = m.rngSeed ?? {};
+  const rngPct = rng.total ? ` <em class="pct">${Math.round((rng.matches / rng.total) * 100)}% 일치</em>` : "";
+  const seeds = [["오버월드 / 엔드", m.overworldSeed, ""], ["네더", m.netherSeed, ""], ["RNG", rng.seed ?? "", rngPct]];
   $("#seeds").innerHTML = seeds
-    .map(([k, v]) => `<button class="seed" data-seed="${esc(v)}" title="클릭해서 복사"><span>${k}</span><code>${esc(v)}</code></button>`)
+    .map(([k, v, extra]) => `<button class="seed" data-seed="${esc(v)}" title="클릭해서 복사"><span>${k}</span><code>${esc(v)}</code>${extra}</button>`)
     .join("");
 
   const winner = m.result?.uuid;
@@ -108,24 +111,28 @@ $("#players").addEventListener("click", (e) => {
 });
 
 $("#hide-minor").addEventListener("change", () => applySelection(true));
+$("#show-opponent").addEventListener("change", () => applySelection(true));
 
 /** 고른 플레이어/옵션으로 이벤트 목록을 만들어 서버에 보냄. keepRun=true면 진행 중인 타이머 유지 */
 function applySelection(keepRun) {
   if (!match) return;
   document.querySelectorAll(".player").forEach((b) => b.classList.toggle("selected", b.dataset.uuid === playerUuid));
   const p = match.players.find((x) => x.uuid === playerUuid);
-  const events = buildEvents(match, playerUuid, $("#hide-minor").checked);
+  const withOpp = $("#show-opponent").checked;
+  const opp = withOpp ? opponentOf(match, playerUuid) : null;
+  const events = buildEvents(match, playerUuid, $("#hide-minor").checked, withOpp);
   const patch = {
     matchId: match.matchId,
     seedType: match.seedType,
     player: { uuid: p.uuid, nickname: p.nickname, rank: p.eloRank, elo: p.elo },
+    opponent: opp && { uuid: opp.uuid, nickname: opp.nickname, rank: opp.eloRank, elo: opp.elo },
     events,
   };
   if (!keepRun) patch.startedAt = null;
   postJson("/api/state", patch);
   $("#ev-count").textContent = `${events.length}개`;
   $("#timeline").innerHTML = events
-    .map(([ms, type]) => `<li class="k-${eventKind(type)}" data-ms="${ms}"><time>${fmt(ms)}</time>${esc(eventName(type))}</li>`)
+    .map(([ms, type, who]) => `<li class="k-${eventKind(type)}${who === OPPONENT ? " opp" : ""}" data-ms="${ms}"><time>${fmt(ms)}</time>${who === OPPONENT ? `<b class="tag">상대 ${esc(opp.nickname)}</b>` : ""}${esc(eventName(type))}</li>`)
     .join("");
 }
 
@@ -139,10 +146,29 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "F8") { e.preventDefault(); start(); }
   if (e.key === "F9") { e.preventDefault(); stop(); }
 });
-// 앱(Electron)으로 실행했을 때만 전체화면/오버레이 위치 버튼 표시
-fetch("/api/app").then((r) => r.json()).then(({ app }) => {
-  document.querySelectorAll(".app-only").forEach((el) => (el.hidden = !app));
-  document.querySelectorAll(".browser-only").forEach((el) => (el.hidden = app));
+// 앱(Electron)으로 실행했을 때만 전체화면/오버레이 위치 버튼, 버전/업데이트 표시
+async function refreshAppInfo() {
+  const info = await (await fetch("/api/app")).json();
+  document.querySelectorAll(".app-only").forEach((el) => (el.hidden = !info.app));
+  document.querySelectorAll(".browser-only").forEach((el) => (el.hidden = info.app));
+  if (info.version) $("#version").textContent = `v${info.version}`;
+  renderUpdate(info.update);
+}
+refreshAppInfo();
+setInterval(refreshAppInfo, 10000);
+
+function renderUpdate(u) {
+  const el = $("#update");
+  const msg = {
+    downloading: () => `새 버전 v${u.version} 내려받는 중... ${u.percent ?? 0}%`,
+    ready: () => `새 버전 v${u.version} 준비 완료. <button id="install-update" class="primary">지금 재시작해서 업데이트</button> (나중에 종료하면 자동 설치)`,
+    available: () => `새 버전 v${u.version}이(가) 나왔습니다. <a href="${u.url}" target="_blank" rel="noopener">다운로드 페이지 열기</a>`,
+  }[u?.status];
+  el.hidden = !msg;
+  if (msg) el.innerHTML = msg();
+}
+$("#update").addEventListener("click", (e) => {
+  if (e.target.id === "install-update") postJson("/api/app/installUpdate");
 });
 
 async function appAction(name) {

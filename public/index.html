@@ -8,8 +8,9 @@
 </head>
 <body class="app">
   <header class="bar">
-    <h1>GapCheck <span>타임라인 오버레이</span></h1>
+    <h1>GapCheck <span>타임라인 오버레이</span> <small id="version"></small></h1>
   </header>
+  <div id="update" class="update" hidden></div>
 
   <form id="search" class="search">
     <input id="query" placeholder="매치 ID 또는 https://gapcheck.gg/m/13448787/ranked" autocomplete="off" autofocus>
@@ -33,6 +34,7 @@
       <div class="card">
         <h2>타임라인 <span id="ev-count" class="muted"></span></h2>
         <label class="check"><input type="checkbox" id="hide-minor" checked> 사소한 이벤트 숨기기</label>
+        <label class="check"><input type="checkbox" id="show-opponent" checked> 상대 현황 표시</label>
         <ol class="timeline" id="timeline"></ol>
       </div>
     </section>

@@ -149,7 +149,8 @@ async function handle(req, res) {
     }
   }
 
-  if (pathname === "/api/app") return sendJson(res, 200, { app: Object.keys(hooks).length > 0 });
+  // 앱 여부 + 버전·업데이트 상태 (hooks.info 는 main.js가 등록)
+  if (pathname === "/api/app") return sendJson(res, 200, { app: Object.keys(hooks).length > 0, ...(hooks.info?.() ?? {}) });
   serveFile(res, PUBLIC, pathname === "/" ? "index.html" : pathname.slice(1));
 }
 

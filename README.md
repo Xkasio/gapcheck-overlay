@@ -9,8 +9,8 @@
 
 [**최신 버전 다운로드 (Releases)**](https://github.com/cksgh111/gapcheck-overlay/releases/latest)
 
-- `GapCheck Overlay-Setup-1.0.1.exe` : 설치판 (바탕화면 바로가기 생성)
-- `GapCheck Overlay-Portable-1.0.1.exe` : 설치 없이 바로 실행
+- `GapCheck-Overlay-Setup-1.1.0.exe` : 설치판 (바탕화면 바로가기 생성)
+- `GapCheck-Overlay-Portable-1.1.0.exe` : 설치 없이 바로 실행
 
 서명되지 않은 프로그램이라 처음 실행할 때 "Windows의 PC 보호" 창이 뜰 수 있습니다. **추가 정보 → 실행**을 누르세요.
 

@@ -3,6 +3,7 @@
 // 전역 단축키(게임 중에도 동작): F6 마인크래프트 전체화면(테두리 없음) 전환, F7 오버레이 위치 옮기기,
 //                                F8 시작/재시작, F9 정지
 const { app, BrowserWindow, globalShortcut, screen, shell } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
 
@@ -13,10 +14,12 @@ const mcwindow = process.platform === "win32" ? require("./mcwindow") : null;
 
 const BOUNDS_FILE = path.join(app.getPath("userData"), "overlay-bounds.json");
 const ICON = path.join(__dirname, "build", "icon.png");
+const RELEASES_URL = "https://github.com/cksgh111/gapcheck-overlay/releases/latest";
 let port = null;
 let controlWin = null;
 let overlay = null;
 let editing = false;
+let update = { status: "idle" };
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -101,6 +104,28 @@ function toggleFullscreen() {
   return r;
 }
 
+// 자동 업데이트 (GitHub Releases). 설치판은 백그라운드로 받아 두고 재시작/종료 시 설치,
+// 포터블은 스스로 교체할 수 없으므로 새 버전 알림만 띄운다.
+function setupAutoUpdate() {
+  if (!app.isPackaged) return; // 개발 실행(start.bat)에서는 끔
+  const portable = !!process.env.PORTABLE_EXECUTABLE_DIR;
+  autoUpdater.autoDownload = !portable;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-available", (i) => {
+    update = portable ? { status: "available", version: i.version, url: RELEASES_URL } : { status: "downloading", version: i.version, percent: 0 };
+  });
+  autoUpdater.on("download-progress", (p) => (update = { ...update, percent: Math.round(p.percent) }));
+  autoUpdater.on("update-downloaded", (i) => (update = { status: "ready", version: i.version }));
+  autoUpdater.on("update-not-available", () => (update = { status: "latest" }));
+  autoUpdater.on("error", (e) => {
+    console.warn("업데이트 확인 실패:", e.message);
+    update = { status: "error" };
+  });
+  const check = () => autoUpdater.checkForUpdates().catch(() => {});
+  check();
+  setInterval(check, 6 * 60 * 60 * 1000);
+}
+
 async function init() {
   try {
     port = await server.start();
@@ -111,9 +136,16 @@ async function init() {
   }
   server.hooks.fullscreen = toggleFullscreen;
   server.hooks.editOverlay = toggleEdit;
+  server.hooks.info = () => ({ version: app.getVersion(), update });
+  server.hooks.installUpdate = () => {
+    if (update.status !== "ready") return { ok: false, message: "받아 둔 업데이트가 없습니다." };
+    setImmediate(() => autoUpdater.quitAndInstall());
+    return { ok: true };
+  };
 
   createOverlay();
   createControl();
+  setupAutoUpdate();
 
   // 게임이 창 순서를 바꿔도 오버레이가 계속 위에 있도록 주기적으로 다시 올린다
   setInterval(() => {

@@ -1,46 +1,31 @@
 // 제어 화면(index)과 오버레이(overlay)가 함께 쓰는 코드.
 // 상태는 중계 서버 한 곳에 있고 /api/state/stream(SSE)으로 받는다.
+// 용어: 발전 과제 이름은 마인크래프트 공식 한국어(lang-ko.js), 그 밖의 용어·타임라인 문구는 MCSR Ranked 공식 한국어(lang-ranked.js)
 import { ADVANCEMENT_TITLES, CHAT_FORMATS } from "./lang-ko.js";
+import { BASTION, BASTION_TYPES, SEED_TYPES, TIMELINE_LABELS, TIMELINE_MESSAGES } from "./lang-ranked.js";
+
+export { BASTION, BASTION_TYPES, SEED_TYPES };
 
 const TIMELINE = "projectelo.timeline.";
-
-// 타임라인(발전 과제가 아닌) 이벤트의 채팅 문구. {name} = 플레이어 닉네임. 조사는 게임처럼 "이(가)"
-const TIMELINE_MESSAGES = {
-  blind_travel: "{name}이(가) 네더에서 블라인드 했습니다.",
-  death_spawnpoint: "{name}이(가) 스폰포인트 데스를 했습니다.",
-  dragon_death: "{name}이(가) 엔더 드래곤을 처치했습니다.",
-  forfeit: "{name}이(가) 기권했습니다.",
-  reset: "{name}이(가) 리셋했습니다.",
-};
-const TIMELINE_LABELS = {
-  blind_travel: "블라인드",
-  death_spawnpoint: "스폰포인트 데스",
-  dragon_death: "드래곤 처치",
-  forfeit: "기권",
-  reset: "리셋",
-};
 
 // 게임에서도 채팅에 안 뜨는 루트 발전 과제
 const NO_CHAT = new Set(["story.root", "nether.root", "end.root", "adventure.root", "husbandry.root"]);
 // 사소한 이벤트 = 발전 과제가 아닌 것 (타임라인 이벤트, 채팅에 안 뜨는 루트). 발전 과제는 전부 사소하지 않음
 const isMinor = (type) => type.startsWith(TIMELINE) || NO_CHAT.has(type);
 
-export const SEED_TYPES = {
-  RUINED_PORTAL: "폐허가 된 차원문",
-  DESERT_TEMPLE: "사막 사원",
-  VILLAGE: "마을",
-  SHIPWRECK: "난파선",
-  BURIED_TREASURE: "묻힌 보물",
-};
-export const BASTION_TYPES = { TREASURE: "보물", HOUSING: "주거지", STABLES: "호글린 우리", BRIDGE: "다리" };
-
 export const CHAT_LIFE_MS = 10000; // 마인크래프트 채팅처럼 10초 뒤 사라짐
 const CHAT_MAX_LINES = 10;
+
+// 이벤트 = [ms, type, who]  who: 0 = 따라가는 플레이어, 1 = 상대
+export const ME = 0;
+export const OPPONENT = 1;
+
+const fill = (text, name) => text.replace("{name}", name).replace(/\{place\}|\{time\}/g, "?");
 
 /** 제어 화면 목록용 짧은 이름 */
 export const eventName = (type) =>
   type.startsWith(TIMELINE)
-    ? TIMELINE_LABELS[type.slice(TIMELINE.length)] ?? type.slice(TIMELINE.length)
+    ? fill(TIMELINE_LABELS[type.slice(TIMELINE.length)] ?? type.slice(TIMELINE.length), "")
     : `[${ADVANCEMENT_TITLES[type] ?? type}]`;
 
 // story / nether / end / projectelo -> CSS 색 클래스
@@ -70,11 +55,14 @@ export async function fetchMatch(id) {
 }
 
 export const winnerUuid = (match) => match.result?.uuid ?? match.players?.[0]?.uuid;
+export const opponentOf = (match, uuid) => match.players?.find((p) => p.uuid !== uuid) ?? null;
 
-export function buildEvents(match, uuid, hideMinor) {
+/** 따라가는 플레이어(+ withOpponent면 상대)의 이벤트를 시간순으로 */
+export function buildEvents(match, uuid, hideMinor, withOpponent) {
+  const opp = withOpponent ? opponentOf(match, uuid) : null;
   return (match.splits ?? [])
-    .filter((s) => s.uuid === uuid && !(hideMinor && isMinor(s.type)))
-    .map((s) => [s.time, s.type])
+    .filter((s) => (s.uuid === uuid || s.uuid === opp?.uuid) && !(hideMinor && isMinor(s.type)))
+    .map((s) => [s.time, s.type, s.uuid === uuid ? ME : OPPONENT])
     .sort((a, b) => a[0] - b[0]);
 }
 
@@ -91,27 +79,30 @@ export const postJson = (url, body) =>
 // ---------- 채팅 메시지 ----------
 // 메시지 = { at: 시작 기준 ms, parts: [[text, colorClass]] }
 function chatMessages(state) {
-  const name = state.player?.nickname ?? "?";
+  const me = state.player?.nickname ?? "?";
   const msgs = [];
   // 카운트다운: 1초마다 한 줄씩 (예: 3초 → 3, 2, 1, 시작!)
   for (let k = state.countdown ?? 0; k > 0; k--) {
-    const text = k === state.countdown ? `[GapCheck] ${name}의 타임라인 시작까지 ${k}초` : `[GapCheck] ${k}초`;
+    const text = k === state.countdown ? `[GapCheck] ${me}의 타임라인 시작까지 ${k}초` : `[GapCheck] ${k}초`;
     msgs.push({ at: -k * 1000, parts: [[text, "c-gray"]] });
   }
-  msgs.push({ at: 0, parts: [[`[GapCheck] 시작! (${name} #${state.player?.rank ?? "-"})`, "c-green"]] });
+  const vs = state.opponent ? ` vs ${state.opponent.nickname} #${state.opponent.rank ?? "-"}` : "";
+  msgs.push({ at: 0, parts: [[`[GapCheck] 시작! (${me} #${state.player?.rank ?? "-"}${vs})`, "c-green"]] });
 
-  for (const [ms, type] of state.events ?? []) {
+  for (const [ms, type, who] of state.events ?? []) {
     if (NO_CHAT.has(type)) continue;
+    const name = who === OPPONENT ? state.opponent?.nickname ?? "?" : me;
+    // 상대 이벤트는 앞에 빨간 [상대]
+    const prefix = who === OPPONENT ? [["[상대] ", "c-red"]] : [];
     if (type.startsWith(TIMELINE)) {
       const key = type.slice(TIMELINE.length);
-      const text = (TIMELINE_MESSAGES[key] ?? `{name}: ${key}`).replace("{name}", name);
-      msgs.push({ at: ms, parts: [[text, "c-yellow"]] });
+      msgs.push({ at: ms, parts: [...prefix, [fill(TIMELINE_MESSAGES[key] ?? `{name}: ${key}`, name), "c-yellow"]] });
     } else {
       // "%s이(가) %s 발전 과제를 달성했습니다" -> 이름(흰색) + [제목](초록)
       const [before, middle, after] = CHAT_FORMATS.task.split("%s");
       msgs.push({
         at: ms,
-        parts: [[before, ""], [name, ""], [middle, ""], [`[${ADVANCEMENT_TITLES[type] ?? type}]`, "c-green"], [after, ""]],
+        parts: [...prefix, [before, ""], [name, ""], [middle, ""], [`[${ADVANCEMENT_TITLES[type] ?? type}]`, "c-green"], [after, ""]],
       });
     }
   }
@@ -133,7 +124,7 @@ export class ChatView {
   render(state, now = Date.now()) {
     this.root.style.setProperty("--scale", (state?.scale ?? 2) * this.zoom);
     // 재시작하면 줄을 처음부터 다시 쌓도록 startedAt 도 키에 넣는다
-    const key = state && JSON.stringify([state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt]);
+    const key = state && JSON.stringify([state.player?.uuid, state.opponent?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt]);
     if (key !== this.cacheKey) {
       this.cacheKey = key;
       this.msgs = state ? chatMessages(state) : [];
