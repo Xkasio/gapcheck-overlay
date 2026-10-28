@@ -11,7 +11,8 @@
 //   StateOutput State: generating,0              (매치 중이 아닐 때) 새 월드 생성 -> 시작 대기
 //   StateOutput State: inworld,unpaused          (랭크드가 아닌 월드) 대기 중 첫 플레이 -> 시작
 //   StateOutput State: title                     타이틀 화면 -> 매치 끝
-//   [CHAT] 닉네임가 매치에서 기권했습니다.        누가 기권하면 매치 끝 -> 타이머 정지
+//   [CHAT] 닉네임가 매치에서 기권했습니다.        상대가 기권하면 매치 끝 -> 타이머 정지
+//   [WorldCreator] leaving the server...         매치 중 서버를 떠남(내 기권 등, 리셋 제외) -> 타이머 정지
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -106,6 +107,7 @@ class LogWatcher {
     this.onRun = onRun;
     this.armed = false; // 새 월드/매치를 준비 중이라 다음 시작 신호를 기다리는 상태
     this.inMatch = false; // 매치 진행 중 (Match initializing 부터). 이때 월드 리셋은 새 런이 아님
+    this.resetting = false; // 월드 리셋 중 (resetting the server ~ leaving the server)
     this.file = null;
     this.timer = null;
   }
@@ -137,6 +139,7 @@ class LogWatcher {
   restoreRunState() {
     this.armed = false;
     this.inMatch = false;
+    this.resetting = false;
     const emit = this.onRun;
     this.onRun = () => {}; // 지난 줄로는 타이머를 건드리지 않음
     try {
@@ -229,7 +232,18 @@ class LogWatcher {
       return true;
     }
     if (text.startsWith("[WorldCreator] resetting the server")) {
+      this.resetting = true; // 리셋도 "leaving the server" 를 남기므로 매치를 떠난 것과 구분
       if (this.inMatch) this.onRun("worldReset");
+      return true;
+    }
+    // 내가 기권하면 채팅 줄 없이 바로 서버를 떠난다. 매치 중에 (리셋이 아닌데) 떠나면 매치 끝 -> 정지
+    if (text.startsWith("[WorldCreator] leaving the server")) {
+      if (this.inMatch && !this.resetting) {
+        this.inMatch = false;
+        this.armed = false;
+        this.onRun("forfeit");
+      }
+      this.resetting = false;
       return true;
     }
     if (text.startsWith("StateOutput State: generating")) {
