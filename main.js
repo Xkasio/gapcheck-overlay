@@ -13,7 +13,7 @@ process.env.GAPCHECK_DATA = path.join(app.getPath("userData"), "data");
 const server = require("./server");
 const mcwindow = process.platform === "win32" ? require("./mcwindow") : null;
 
-// 오버레이 창 위치 파일 (채팅은 예전 파일 이름을 그대로 써서 기존 위치 유지)
+// 오버레이 창 위치 파일
 const BOUNDS_FILES = {
   chat: path.join(app.getPath("userData"), "overlay-bounds.json"),
   status: path.join(app.getPath("userData"), "status-bounds.json"),
