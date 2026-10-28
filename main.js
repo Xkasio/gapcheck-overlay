@@ -220,7 +220,8 @@ async function init() {
   };
   server.hooks.installUpdate = () => {
     if (update.status !== "ready") return { ok: false, message: "받아 둔 업데이트가 없습니다." };
-    setImmediate(() => autoUpdater.quitAndInstall());
+    // 설치 화면 없이 조용히 설치하고 다시 실행
+    setImmediate(() => autoUpdater.quitAndInstall(true, true));
     return { ok: true };
   };
 
