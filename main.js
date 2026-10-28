@@ -164,7 +164,14 @@ function setupAutoUpdate() {
   if (!app.isPackaged) return; // 개발 실행(start.bat)에서는 끔
   const portable = !!process.env.PORTABLE_EXECUTABLE_DIR;
   autoUpdater.autoDownload = !portable;
-  autoUpdater.autoInstallOnAppQuit = true;
+  // 종료할 때 받아 둔 업데이트가 있으면 직접 설치하고 다시 실행 (아래 before-quit)
+  autoUpdater.autoInstallOnAppQuit = false;
+  app.on("before-quit", (e) => {
+    if (update.status !== "ready" || update.installing) return;
+    e.preventDefault();
+    update = { ...update, installing: true };
+    autoUpdater.quitAndInstall(true, true);
+  });
   autoUpdater.on("update-available", (i) => {
     update = portable ? { status: "available", version: i.version, url: RELEASES_URL } : { status: "downloading", version: i.version, percent: 0 };
   });

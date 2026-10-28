@@ -6,8 +6,8 @@
 // 로그 인코딩은 인스턴스마다 UTF-8 이거나 CP949(한국어 Windows 기본) 라서 줄마다 판별한다.
 //
 // 런 시작 감지 (타이머 자동 시작):
-//   [WorldCreator] Match initializing...        새 매치 준비 -> 초기화, 시작 대기
-//   Re-activating match recording                랭크드 매치 시작(카운트다운 끝) -> 시작, "매치 중"
+//   [WorldCreator] Match initializing...        새 매치 준비 -> 초기화, 시작 대기, "매치 중"
+//   Re-activating match recording                랭크드 매치 시작(카운트다운 끝) -> 시작 (이 줄이 없는 매치는 아래 unpaused 로 시작)
 //   [WorldCreator] resetting the server...       매치 중 월드 리셋 -> 타이머는 그대로(매치 시계는 계속 감), 내 기록만 초기화
 //   StateOutput State: generating,0              (매치 중이 아닐 때) 새 월드 생성 -> 시작 대기
 //   StateOutput State: inworld,unpaused          (랭크드가 아닌 월드) 대기 중 첫 플레이 -> 시작
@@ -105,7 +105,7 @@ class LogWatcher {
     this.onInfo = onInfo;
     this.onRun = onRun;
     this.armed = false; // 새 월드/매치를 준비 중이라 다음 시작 신호를 기다리는 상태
-    this.inMatch = false; // 랭크드 매치 진행 중 (이때 월드 리셋은 새 런이 아님)
+    this.inMatch = false; // 매치 진행 중 (Match initializing 부터). 이때 월드 리셋은 새 런이 아님
     this.file = null;
     this.timer = null;
   }
@@ -216,7 +216,7 @@ class LogWatcher {
   /** 런 시작/초기화 줄이면 처리하고 true */
   detectRun(text) {
     if (text.startsWith("[WorldCreator] Match initializing")) {
-      this.inMatch = false;
+      this.inMatch = true;
       this.armed = true;
       this.onRun("reset");
       return true;
