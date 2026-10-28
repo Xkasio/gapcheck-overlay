@@ -35,7 +35,8 @@
       "!node_modules/koffi/{src,vendor,doc}/**",
       "!node_modules/koffi/build/koffi/{darwin,freebsd,linux,musl,openbsd}_*/**",
       "!node_modules/koffi/build/koffi/win32_{arm64,ia32}/**",
-      "logwatch.js"
+      "logwatch.js",
+      "replay.js"
     ],
     "asarUnpack": [
       "node_modules/koffi/build/**"
