@@ -10,8 +10,10 @@ const TIMELINE = "projectelo.timeline.";
 
 // 게임에서도 채팅에 안 뜨는 루트 발전 과제
 const NO_CHAT = new Set(["story.root", "nether.root", "end.root", "adventure.root", "husbandry.root"]);
-// 사소한 이벤트 = 발전 과제가 아닌 것 (타임라인 이벤트, 채팅에 안 뜨는 루트). 발전 과제는 전부 사소하지 않음
-const isMinor = (type) => type.startsWith(TIMELINE) || NO_CHAT.has(type);
+// 중요한 타임라인 이벤트: 사소한 이벤트를 숨겨도 채팅에 뜬다
+const IMPORTANT = new Set([`${TIMELINE}blind_travel`]);
+// 사소한 이벤트 = 발전 과제가 아닌 것 (중요하지 않은 타임라인 이벤트, 채팅에 안 뜨는 루트). 발전 과제는 전부 사소하지 않음
+const isMinor = (type) => (type.startsWith(TIMELINE) && !IMPORTANT.has(type)) || NO_CHAT.has(type);
 
 export const CHAT_LIFE_MS = 10000; // 마인크래프트 채팅처럼 10초 뒤 사라짐
 const CHAT_MAX_LINES = 10;
