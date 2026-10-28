@@ -3,7 +3,6 @@
 //   [00:05:40] [Server thread/INFO]: user이(가) [철이 철철 넘쳐] 발전 과제를 달성했습니다
 //   [00:05:36] [main/INFO]: [CHAT] user이(가) [철이 철철 넘쳐] 발전 과제를 달성했습니다   <- 다른 플레이어
 //   [18:26:59] [Server thread/INFO]: user has made the advancement [Stone Age]          <- 영어
-// 로그 인코딩은 인스턴스마다 UTF-8 이거나 CP949(한국어 Windows 기본) 라서 줄마다 판별한다.
 //
 // 런 시작 감지 (타이머 자동 시작):
 //   [WorldCreator] Match initializing...        새 매치 준비 -> 초기화, 시작 대기, "매치 중"
