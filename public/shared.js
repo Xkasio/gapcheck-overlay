@@ -11,7 +11,7 @@ const TIMELINE = "projectelo.timeline.";
 // 게임에서도 채팅에 안 뜨는 루트 발전 과제
 const NO_CHAT = new Set(["story.root", "nether.root", "end.root", "adventure.root", "husbandry.root"]);
 // 중요한 타임라인 이벤트: 사소한 이벤트를 숨겨도 채팅에 뜬다
-const IMPORTANT = new Set([`${TIMELINE}blind_travel`]);
+const IMPORTANT = new Set([`${TIMELINE}blind_travel`, `${TIMELINE}dragon_death`]);
 // 사소한 이벤트 = 발전 과제가 아닌 것 (중요하지 않은 타임라인 이벤트, 채팅에 안 뜨는 루트). 발전 과제는 전부 사소하지 않음
 const isMinor = (type) => (type.startsWith(TIMELINE) && !IMPORTANT.has(type)) || NO_CHAT.has(type);
 
@@ -64,6 +64,10 @@ export async function fetchMatch(id) {
   return (await r.json()).match;
 }
 
+/** 화면에 쓸 현재 시각. 내가 완주하면(finishedAt = 시작 기준 내 완주 ms) 그 순간에 멈춘다 */
+export const viewNow = (state, now = Date.now()) =>
+  state?.startedAt != null && state.finishedAt != null ? state.startedAt + state.finishedAt : now;
+
 export const winnerUuid = (match) => match.result?.uuid ?? match.players?.[0]?.uuid;
 
 /** 따라가는 플레이어의 이벤트 [ms, type] 를 시간순으로 */
@@ -97,6 +101,7 @@ export function previewState(state) {
   return {
     ...state,
     startedAt: previewStart,
+    finishedAt: null,
     countdown: 0,
     keepChat: true,
     showAdvancements: true,
@@ -165,7 +170,24 @@ function chatMessages(state) {
       msgs.push(msg);
     }
   }
-  return msgs;
+  // 매치 완료 단계가 되면 "[11:45] 닉네임이(가) 매치를 완주했습니다." (발전 과제 숨김과 관계없이)
+  // 내가 완주했으면(mine 의 "complete") 발전 과제 줄처럼 뒤에 차이를 붙인다
+  const done = (state.stages ?? []).find(([, idx]) => idx === DONE);
+  if (done) {
+    const ms = done[0];
+    const prefix = times ? [[`[${clock(ms)}] `, "c-gray"]] : [];
+    const msg = { at: ms, parts: [...prefix, [`${name}이(가) 매치를 완주했습니다.`, "c-green"]] };
+    const myMs = mine.get("complete");
+    if (state.showDelta !== false && myMs != null) {
+      msg.parts.push([` ${fmtDelta(myMs - ms)}`, myMs > ms ? "c-red" : "c-blue"]);
+      msg.showAt = Math.max(ms, myMs);
+    }
+    // 내가 먼저 완주하면 타이머가 멈춰 그 시각이 오지 않으므로 내 완주 때 바로 띄운다
+    if (myMs != null) msg.at = Math.min(ms, myMs);
+    msgs.push(msg);
+  }
+  // 메시지는 시간순이어야 아래에 차례로 붙는다
+  return msgs.sort((a, b) => a.at - b.at);
 }
 
 /** 현황 줄. 시작 후 계속 떠 있고, 단계가 바뀌면 잠깐 반짝인다 */
