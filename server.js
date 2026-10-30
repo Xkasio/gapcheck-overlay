@@ -94,7 +94,8 @@ const watcher = new LogWatcher({
       return setState({ finishedAt: t, mine: [...state.mine, [t, "complete"]] });
     }
     if (what === "worldReset") return state.startedAt != null && setState({ mine: [] });
-    if (what === "forfeit") return state.startedAt != null && control.stop();
+    // 기권·매치 떠남이면 정지. 단, 내가 완주한 뒤 떠난 것이면 결과를 다음 매치 준비(또는 정지)까지 남긴다
+    if (what === "forfeit") return state.startedAt != null && state.finishedAt == null && control.stop();
     if (!state.autoStart || !state.events.length) return;
     if (what === "start") setState({ startedAt: Date.now(), finishedAt: null, mine: [] });
     else control.stop();
