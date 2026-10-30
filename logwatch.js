@@ -13,6 +13,11 @@
 //   StateOutput State: title                     타이틀 화면 -> 매치 끝
 //   [CHAT] 닉네임가 매치에서 기권했습니다.        상대가 기권하면 매치 끝 -> 타이머 정지
 //   [WorldCreator] leaving the server...         매치 중 서버를 떠남(내 기권 등, 리셋 제외) -> 타이머 정지
+//
+// 내 완주 감지 (완주 전용 로그 줄은 없다):
+//   내 [엔드 해방] 발전 과제 뒤 첫 "Stopping worker threads"   엔드 출구 포털로 차원이 바뀐 순간 = 완주 -> 타이머 멈춤
+//   ("Saving and pausing game..." 은 Esc 일시정지에도 남아서 쓰지 않는다)
+//   (드래곤 처치 약 10초 뒤로, 랭크드 공식 기록과 같은 시점. 그 전에 서버를 떠나면 그때 완주로 본다)
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -108,6 +113,7 @@ class LogWatcher {
     this.armed = false; // 새 월드/매치를 준비 중이라 다음 시작 신호를 기다리는 상태
     this.inMatch = false; // 매치 진행 중 (Match initializing 부터). 이때 월드 리셋은 새 런이 아님
     this.resetting = false; // 월드 리셋 중 (resetting the server ~ leaving the server)
+    this.finishing = false; // 내가 드래곤을 잡고 엔딩 화면을 기다리는 중
     this.file = null;
     this.timer = null;
   }
@@ -140,6 +146,7 @@ class LogWatcher {
     this.armed = false;
     this.inMatch = false;
     this.resetting = false;
+    this.finishing = false;
     const emit = this.onRun;
     this.onRun = () => {}; // 지난 줄로는 타이머를 건드리지 않음
     try {
@@ -208,16 +215,24 @@ class LogWatcher {
     }
     const parsed = parseLine(line);
     if (!parsed) return;
-    if (this.detectRun(parsed.text)) return;
-    const adv = parseAdvancement(parsed.text);
+    const { text } = parsed;
+    if (this.finishing && (text === "Stopping worker threads" || text.startsWith("[WorldCreator] leaving the server") || text === "StateOutput State: title")) {
+      this.finishing = false;
+      this.onRun("finish");
+    }
+    if (this.detectRun(text)) return;
+    const adv = parseAdvancement(text);
     if (!adv) return;
     // 내 것: 닉네임이 같거나, 닉네임을 모르면 이 PC의 서버 스레드에서 나온 줄
     const mine = this.user ? adv.player === this.user : parsed.thread.startsWith("Server thread");
+    if (mine && adv.type === "end.kill_dragon") this.finishing = true;
     this.onAdvancement({ ...adv, mine });
   }
 
   /** 런 시작/초기화 줄이면 처리하고 true */
   detectRun(text) {
+    // 새 매치·월드 리셋이면 드래곤을 잡았어도 완주가 아니다
+    if (text.startsWith("[WorldCreator] Match initializing") || text.startsWith("[WorldCreator] resetting the server")) this.finishing = false;
     if (text.startsWith("[WorldCreator] Match initializing")) {
       this.inMatch = true;
       this.armed = true;
