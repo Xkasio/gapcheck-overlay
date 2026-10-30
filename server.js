@@ -53,7 +53,7 @@ let state = {
   showAdvancements: true, keepChat: false, showTimes: true, showDelta: true, autoStart: true, alwaysOnTop: true, bgOpacity: 0.5, chatOpacity: 1, logPath: "", log: null, mine: [],
 };
 try {
-  state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null, mine: [], log: null, preview: false };
+  state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null, finishedAt: null, mine: [], log: null, preview: false };
 } catch { /* 처음 실행 */ }
 
 const clients = new Set();
@@ -66,7 +66,7 @@ function setState(patch) {
   for (const res of clients) res.write(msg);
   fs.mkdirSync(DATA, { recursive: true });
   // 실행 중에만 의미 있는 값은 저장하지 않음
-  const { startedAt, mine, log, preview, ...saved } = state;
+  const { startedAt, finishedAt, mine, log, preview, ...saved } = state;
   fs.writeFileSync(STATE_FILE, JSON.stringify(saved), "utf-8");
   for (const fn of listeners) fn(state);
 }
@@ -76,8 +76,8 @@ const listeners = new Set();
 const onChange = (fn) => listeners.add(fn);
 
 const control = {
-  start: () => state.events.length && setState({ startedAt: Date.now() + (Number(state.countdown) || 0) * 1000, mine: [] }),
-  stop: () => setState({ startedAt: null, mine: [] }),
+  start: () => state.events.length && setState({ startedAt: Date.now() + (Number(state.countdown) || 0) * 1000, finishedAt: null, mine: [] }),
+  stop: () => setState({ startedAt: null, finishedAt: null, mine: [] }),
   toggle: (key) => setState({ [key]: !state[key] }),
 };
 
@@ -86,16 +86,19 @@ const watcher = new LogWatcher({
   onInfo: (info) => setState({ log: info && { ...state.log, ...info } }),
   // 자동 시작: 매치/월드가 시작되는 순간 타이머 시작 (카운트다운 없이), 새 매치 준비 때 정지
   // 매치 중 월드 리셋: 매치 시계는 계속 가므로 타이머는 두고, 새 월드에서 다시 딸 내 기록만 비운다
+  // 내가 완주: 타이머를 그 순간에 멈춰 결과를 남긴다 (매치를 떠나도 다음 매치 준비 때까지 그대로)
   onRun: (what) => {
-    if (what === "worldReset") return state.startedAt != null && setState({ mine: [] });
-    if (what === "forfeit") return state.startedAt != null && control.stop();
+    const running = state.startedAt != null && state.finishedAt == null;
+    if (what === "finish") return running && setState({ finishedAt: Math.max(0, Date.now() - state.startedAt) });
+    if (what === "worldReset") return running && setState({ mine: [] });
+    if (what === "forfeit") return running && control.stop();
     if (!state.autoStart || !state.events.length) return;
-    if (what === "start") setState({ startedAt: Date.now(), mine: [] });
+    if (what === "start") setState({ startedAt: Date.now(), finishedAt: null, mine: [] });
     else control.stop();
   },
   onAdvancement: ({ type, mine }) => {
     if (!mine || !type) return;
-    const t = state.startedAt == null ? null : Date.now() - state.startedAt;
+    const t = state.startedAt == null || state.finishedAt != null ? null : Date.now() - state.startedAt;
     // 타이머가 돌고 있을 때, 같은 발전 과제는 처음 한 번만 기록
     if (t == null || t < 0 || state.mine.some(([, ty]) => ty === type)) return;
     setState({ mine: [...state.mine, [t, type]] });
