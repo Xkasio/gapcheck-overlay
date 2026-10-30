@@ -86,12 +86,15 @@ const watcher = new LogWatcher({
   onInfo: (info) => setState({ log: info && { ...state.log, ...info } }),
   // 자동 시작: 매치/월드가 시작되는 순간 타이머 시작 (카운트다운 없이), 새 매치 준비 때 정지
   // 매치 중 월드 리셋: 매치 시계는 계속 가므로 타이머는 두고, 새 월드에서 다시 딸 내 기록만 비운다
-  // 내가 완주: 타이머를 그 순간에 멈춰 결과를 남긴다 (매치를 떠나도 다음 매치 준비 때까지 그대로)
+  // 내가 완주: 타이머를 그 순간에 멈추고(finishedAt), 완주 시각을 내 기록(mine)에 "complete" 로 남겨 따라가는 플레이어의 완주와 비교한다
   onRun: (what) => {
-    const running = state.startedAt != null && state.finishedAt == null;
-    if (what === "finish") return running && setState({ finishedAt: Math.max(0, Date.now() - state.startedAt) });
-    if (what === "worldReset") return running && setState({ mine: [] });
-    if (what === "forfeit") return running && control.stop();
+    if (what === "finish") {
+      if (state.startedAt == null || state.finishedAt != null) return;
+      const t = Math.max(0, Date.now() - state.startedAt);
+      return setState({ finishedAt: t, mine: [...state.mine, [t, "complete"]] });
+    }
+    if (what === "worldReset") return state.startedAt != null && setState({ mine: [] });
+    if (what === "forfeit") return state.startedAt != null && control.stop();
     if (!state.autoStart || !state.events.length) return;
     if (what === "start") setState({ startedAt: Date.now(), finishedAt: null, mine: [] });
     else control.stop();

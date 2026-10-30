@@ -11,7 +11,7 @@ const TIMELINE = "projectelo.timeline.";
 // 게임에서도 채팅에 안 뜨는 루트 발전 과제
 const NO_CHAT = new Set(["story.root", "nether.root", "end.root", "adventure.root", "husbandry.root"]);
 // 중요한 타임라인 이벤트: 사소한 이벤트를 숨겨도 채팅에 뜬다
-const IMPORTANT = new Set([`${TIMELINE}blind_travel`, `${TIMELINE}dragon_death`]);
+const IMPORTANT = new Set([`${TIMELINE}blind_travel`]);
 // 사소한 이벤트 = 발전 과제가 아닌 것 (중요하지 않은 타임라인 이벤트, 채팅에 안 뜨는 루트). 발전 과제는 전부 사소하지 않음
 const isMinor = (type) => (type.startsWith(TIMELINE) && !IMPORTANT.has(type)) || NO_CHAT.has(type);
 
@@ -64,11 +64,7 @@ export async function fetchMatch(id) {
   return (await r.json()).match;
 }
 
-/** 화면에 쓸 현재 시각. 내가 완주하면(finishedAt = 시작 기준 내 완주 ms) 그 순간에 멈춘다 */
-export const viewNow = (state, now = Date.now()) =>
-  state?.startedAt != null && state.finishedAt != null ? state.startedAt + state.finishedAt : now;
-
-export const winnerUuid =(match) => match.result?.uuid ?? match.players?.[0]?.uuid;
+export const winnerUuid = (match) => match.result?.uuid ?? match.players?.[0]?.uuid;
 
 /** 따라가는 플레이어의 이벤트 [ms, type] 를 시간순으로 */
 export function buildEvents(match, uuid, hideMinor) {
@@ -85,9 +81,8 @@ export function buildStages(match, uuid) {
     const idx = STAGE_EVENTS[s.type];
     if (s.uuid === uuid && idx != null && !(first.get(idx) <= s.time)) first.set(idx, s.time);
   }
-  // 매치 완료: 승자는 공식 기록(드래곤 처치 후 약 10초). 승자가 아니어도 드래곤을 잡았으면 그 시각에 완주
-  const dragon = (match.splits ?? []).find((s) => s.uuid === uuid && s.type === `${TIMELINE}dragon_death`)?.time;
-  const done = match.result?.uuid === uuid ? match.result.time ?? match.finalTime ?? dragon : dragon;
+  // 매치 완료는 승자만 (공식 기록 = 드래곤 처치 후 약 10초). 진 사람은 매치가 먼저 끝나므로 마지막 단계에 머문다
+  const done = match.result?.uuid === uuid ? match.result.time ?? match.finalTime : null;
   if (done != null) first.set(DONE, done);
   return [...first].map(([idx, ms]) => [ms, idx]).sort((a, b) => a[0] - b[0]);
 }
@@ -102,7 +97,6 @@ export function previewState(state) {
   return {
     ...state,
     startedAt: previewStart,
-    finishedAt: null,
     countdown: 0,
     keepChat: true,
     showAdvancements: true,
@@ -171,23 +165,7 @@ function chatMessages(state) {
       msgs.push(msg);
     }
   }
-  // 매치 완료 단계가 되면 "[11:45] 닉네임이(가) 매치를 완주했습니다." (발전 과제 숨김과 관계없이)
-  // 내가 완주했으면 뒤에 차이. 내가 먼저 완주하면 타이머가 멈추므로 그때 바로 띄운다
-  const done = (state.stages ?? []).find(([, idx]) => idx === DONE);
-  if (done) {
-    const ms = done[0];
-    const prefix = times ? [[`[${clock(ms)}] `, "c-gray"]] : [];
-    const msg = { at: ms, parts: [...prefix, [`${name}이(가) 매치를 완주했습니다.`, "c-green"]] };
-    const myMs = state.finishedAt;
-    if (myMs != null) {
-      if (state.showDelta !== false) msg.parts.push([` ${fmtDelta(myMs - ms)}`, myMs > ms ? "c-red" : "c-blue"]);
-      msg.at = Math.min(ms, myMs);
-      msg.showAt = myMs;
-    }
-    msgs.push(msg);
-  }
-  // 메시지는 시간순이어야 아래에 차례로 붙는다
-  return msgs.sort((a, b) => a.at - b.at);
+  return msgs;
 }
 
 /** 현황 줄. 시작 후 계속 떠 있고, 단계가 바뀌면 잠깐 반짝인다 */
@@ -260,7 +238,7 @@ export class ChatView {
     this.root.style.opacity = state?.chatOpacity ?? 1;
     // 재시작하면 줄을 처음부터 다시 쌓도록 startedAt 도 키에 넣는다
     const key = state && JSON.stringify([state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt,
-      state.showAdvancements, state.showTimes, state.showDelta, state.mine?.length, state.stages?.at(-1), state.finishedAt]);
+      state.showAdvancements, state.showTimes, state.showDelta, state.mine?.length]);
     if (key !== this.cacheKey) {
       this.cacheKey = key;
       this.msgs = state ? chatMessages(state) : [];

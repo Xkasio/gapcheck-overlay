@@ -1,6 +1,6 @@
 import {
   BASTION, BASTION_TYPES, ChatView, SEED_TYPES, StatusView, buildEvents, buildStages, eventKind, eventName,
-  fetchMatch, fmt, parseId, postJson, previewState, subscribeState, viewNow, winnerUuid,
+  fetchMatch, fmt, parseId, postJson, previewState, subscribeState, winnerUuid,
 } from "./shared.js";
 
 const $ = (s) => document.querySelector(s);
@@ -398,13 +398,13 @@ document.addEventListener("keydown", (e) => {
 
 // ---------- 화면 갱신 ----------
 function tick() {
-  const now = viewNow(state);
+  const now = Date.now();
   previewStatus.render(state, now);
   previewChat.render(state, now);
   if ($("#settings").open) {
     const sample = previewState(state);
-    settingsStatus.render(sample);
-    settingsChat.render(sample);
+    settingsStatus.render(sample, now);
+    settingsChat.render(sample, now);
   }
   const running = state?.startedAt != null;
   const t = running ? now - state.startedAt : 0;
