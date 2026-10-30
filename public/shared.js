@@ -81,8 +81,9 @@ export function buildStages(match, uuid) {
     const idx = STAGE_EVENTS[s.type];
     if (s.uuid === uuid && idx != null && !(first.get(idx) <= s.time)) first.set(idx, s.time);
   }
-  // 매치 완료는 승자만 (공식 기록 = 드래곤 처치 후 약 10초). 진 사람은 매치가 먼저 끝나므로 마지막 단계에 머문다
-  const done = match.result?.uuid === uuid ? match.result.time ?? match.finalTime : null;
+  // 매치 완료: 승자는 공식 기록(드래곤 처치 후 약 10초). 승자가 아니어도 드래곤을 잡았으면 그 시각에 완주
+  const dragon = (match.splits ?? []).find((s) => s.uuid === uuid && s.type === `${TIMELINE}dragon_death`)?.time;
+  const done = match.result?.uuid === uuid ? match.result.time ?? match.finalTime ?? dragon : dragon;
   if (done != null) first.set(DONE, done);
   return [...first].map(([idx, ms]) => [ms, idx]).sort((a, b) => a[0] - b[0]);
 }
@@ -165,7 +166,14 @@ function chatMessages(state) {
       msgs.push(msg);
     }
   }
-  return msgs;
+  // 매치 완료 단계가 되면 "[11:45] 닉네임이(가) 매치를 완주했습니다." (발전 과제 숨김과 관계없이)
+  const done = (state.stages ?? []).find(([, idx]) => idx === DONE);
+  if (done) {
+    const prefix = times ? [[`[${clock(done[0])}] `, "c-gray"]] : [];
+    msgs.push({ at: done[0], parts: [...prefix, [`${name}이(가) 매치를 완주했습니다.`, "c-green"]] });
+  }
+  // 메시지는 시간순이어야 아래에 차례로 붙는다
+  return msgs.sort((a, b) => a.at - b.at);
 }
 
 /** 현황 줄. 시작 후 계속 떠 있고, 단계가 바뀌면 잠깐 반짝인다 */
@@ -238,7 +246,7 @@ export class ChatView {
     this.root.style.opacity = state?.chatOpacity ?? 1;
     // 재시작하면 줄을 처음부터 다시 쌓도록 startedAt 도 키에 넣는다
     const key = state && JSON.stringify([state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt,
-      state.showAdvancements, state.showTimes, state.showDelta, state.mine?.length]);
+      state.showAdvancements, state.showTimes, state.showDelta, state.mine?.length, state.stages?.at(-1)]);
     if (key !== this.cacheKey) {
       this.cacheKey = key;
       this.msgs = state ? chatMessages(state) : [];
