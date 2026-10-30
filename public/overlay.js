@@ -12,6 +12,8 @@ const part = params.get("part");
 document.body.classList.toggle("part-status", part === "status");
 if (part === "status") document.querySelector("#chat").remove();
 if (part === "chat") document.querySelector("#status").remove();
+// 두 창 이름이 같으면 OBS 창 캡처 같은 외부 프로그램에서 구분이 안 되므로 나눠 둔다
+document.title = { status: "GapCheck Overlay - 현황", chat: "GapCheck Overlay - 채팅" }[part] ?? "GapCheck Overlay";
 document.querySelector(".edit-hint b").textContent = { status: "현황", chat: "채팅" }[part] ?? "오버레이";
 
 const status = part === "chat" ? null : new StatusView(document.querySelector("#status"));
