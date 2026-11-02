@@ -3,7 +3,6 @@
 [gapcheck.gg](https://gapcheck.gg) 매치에서 상위 랭커의 **현황과 발전 과제를 그 시각에 맞춰** 마인크래프트 화면 위에 띄워 주는 프로그램입니다.
 같은 시드를 플레이하면서 그 사람이 지금쯤 어디까지 갔는지 바로 비교할 수 있습니다.
 
-> gapcheck.gg, MCSR Ranked, Mojang, Microsoft와 관계없는 비공식 팬 메이드 도구입니다.
 
 ## 설치
 
@@ -30,6 +29,7 @@
 5. **내 기록과 비교**: 마인크래프트 로그(`logs/latest.log`)를 연결하면 내 발전 과제를 실시간으로 읽어 차이를 붙입니다
    - `[3:12] user이(가) [철이 철철 넘쳐] 발전 과제를 달성했습니다 +4.9` (내가 느리면 빨강 +, 빠르면 파랑 -)
    - 로그는 MCSRLauncher·Prism·MultiMC 인스턴스에서 자동으로 찾습니다
+6. ToolScreen Overlay에 등록이 가능합니다.
 
 ## 단축키 (게임 중에도 동작, 제어 창에서 변경 가능)
 
@@ -57,4 +57,3 @@ npm run dist     # dist/<버전>/ 에 설치판·포터블 exe, 업데이트 파
   - `lang-ranked.js` 시드 유형·바스티온·타임라인 문구: MCSR Ranked 공식 한국어
 - 데이터(매치 캐시, 설정, 단축키): `%APPDATA%\GapCheck Overlay\`
 
-글꼴: [갈무리](https://github.com/quiple/galmuri) (SIL Open Font License 1.1)
