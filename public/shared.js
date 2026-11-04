@@ -1,10 +1,24 @@
 // 제어 화면(index)과 오버레이(overlay)가 함께 쓰는 코드.
 // 상태는 중계 서버 한 곳에 있고 /api/state/stream(SSE)으로 받는다.
-// 용어: 발전 과제 이름은 마인크래프트 공식 한국어(lang-ko.js), 그 밖의 용어·타임라인 문구는 MCSR Ranked 공식 한국어(lang-ranked.js)
-import { ADVANCEMENT_TITLES, CHAT_FORMATS } from "./lang-ko.js";
-import { BASTION, BASTION_TYPES, SEED_TYPES, TIMELINE_LABELS, TIMELINE_MESSAGES } from "./lang-ranked.js";
+// 용어: 발전 과제 이름은 마인크래프트 공식 번역, 그 밖의 용어·타임라인 문구는 MCSR Ranked 공식 번역(game-lang.json). 번역이 없으면 게임처럼 영어
+import { GAME_LANG, UI_TO_GAME, getUiLang, t } from "./i18n.js";
 
-export { BASTION, BASTION_TYPES, SEED_TYPES };
+const EN = GAME_LANG.en_us;
+const gameLang = (code) => GAME_LANG[code] ?? EN;
+const rankedText = (section, key, code) => gameLang(code).ranked?.[section]?.[key] ?? EN.ranked[section][key];
+const advTitle = (type, code) => gameLang(code).titles[type] ?? EN.titles[type] ?? type;
+/** 제어 화면에 쓸 게임 용어의 언어: 시스템 언어와 같은 언어 */
+const uiGameLang = () => UI_TO_GAME[getUiLang()];
+
+export const seedTypeName = (type) => rankedText("seed", type, uiGameLang()) ?? type;
+export const bastionTypeName = (type) => rankedText("bastion", type, uiGameLang()) ?? type;
+export const bastionLabel = () => gameLang(uiGameLang()).ranked?.bastionName ?? EN.ranked.bastionName;
+
+/** 오버레이에 쓸 언어 코드. 게임 언어와 동일이면 감지한 게임 언어, 모르면 시스템 언어 */
+export function overlayLang(state) {
+  if (state?.overlayLang && state.overlayLang !== "game" && GAME_LANG[state.overlayLang]) return state.overlayLang;
+  return GAME_LANG[state?.gameLang] ? state.gameLang : UI_TO_GAME[state?.uiLang] ?? "en_us";
+}
 
 const TIMELINE = "projectelo.timeline.";
 
@@ -19,7 +33,7 @@ export const CHAT_LIFE_MS = 10000; // 마인크래프트 채팅처럼 10초 뒤 
 const CHAT_MAX_LINES = 10;
 
 // 현황 단계. 오버레이 맨 위에 계속 표시되고, 매치 기록의 아래 이벤트 시각에 맞춰 바뀐다
-export const STAGES = ["매치 시작", "네더 입장", "바스티온 입장", "네더 요새 입장", "엔드 유적 찾는 중", "엔드 유적 발견", "엔드 입장", "매치 완료"];
+const STAGES = ["started", "enter_nether", "enter_bastion", "enter_fortress", "blinded", "eye_spy", "enter_end", "complete_match"];
 const STAGE_EVENTS = {
   "story.enter_the_nether": 1,
   "nether.find_bastion": 2,
@@ -33,10 +47,10 @@ const DONE = STAGES.length - 1;
 const fill = (text, name) => text.replace("{name}", name).replace(/\{place\}|\{time\}/g, "?");
 
 /** 제어 화면 목록용 짧은 이름 */
-export const eventName = (type) =>
+export const eventName = (type, code = uiGameLang()) =>
   type.startsWith(TIMELINE)
-    ? fill(TIMELINE_LABELS[type.slice(TIMELINE.length)] ?? type.slice(TIMELINE.length), "")
-    : `[${ADVANCEMENT_TITLES[type] ?? type}]`;
+    ? fill(rankedText("labels", type.slice(TIMELINE.length), code) ?? type.slice(TIMELINE.length), "")
+    : `[${advTitle(type, code)}]`;
 
 // story / nether / end / projectelo -> CSS 색 클래스
 export const eventKind = (type) => {
@@ -59,8 +73,8 @@ export function parseId(text) {
 
 export async function fetchMatch(id) {
   const r = await fetch(`/api/match/${id}`);
-  if (r.status === 404) throw new Error("없는 매치입니다.");
-  if (!r.ok) throw new Error("gapcheck.gg에서 불러오지 못했습니다. 중계 서버 창을 확인하세요.");
+  if (r.status === 404) throw new Error(t("match.notFound"));
+  if (!r.ok) throw new Error(t("match.fetchFailed"));
   return (await r.json()).match;
 }
 
@@ -136,16 +150,19 @@ export function fmtDelta(ms) {
 
 // 메시지 = { at: 시작 기준 ms, showAt?: 다시 띄울 시각, parts: [[text, colorClass]] }
 function chatMessages(state) {
+  const code = overlayLang(state);
+  // 게임 문구가 아닌 안내 줄: 언어 코드 앞부분(ja_jp -> ja). 문구가 없는 언어는 영어
+  const say = (key, vars) => t(key, vars, code.split("_")[0]);
   const name = state.player?.nickname ?? "?";
   const msgs = [];
   const times = state.showTimes !== false;
   const mine = new Map((state.mine ?? []).map(([ms, type]) => [type, ms]));
   // 카운트다운: 1초마다 한 줄씩 (예: 3초 → 3, 2, 1, 시작!)
   for (let k = state.countdown ?? 0; k > 0; k--) {
-    const text = k === state.countdown ? `[GapCheck] ${name}의 타임라인 시작까지 ${k}초` : `[GapCheck] ${k}초`;
+    const text = say(k === state.countdown ? "chat.countdownFirst" : "chat.countdown", { name, n: k });
     msgs.push({ at: -k * 1000, system: true, parts: [[text, "c-gray"]] });
   }
-  msgs.push({ at: 0, system: true, parts: [[`[GapCheck] 시작! (${name} #${state.player?.rank ?? "-"})`, "c-green"]] });
+  msgs.push({ at: 0, system: true, parts: [[say("chat.started", { name, rank: state.player?.rank ?? "-" }), "c-green"]] });
 
   for (const [ms, type] of state.events ?? []) {
     if (NO_CHAT.has(type)) continue;
@@ -153,14 +170,13 @@ function chatMessages(state) {
     const prefix = times ? [[`[${clock(ms)}] `, "c-gray"]] : [];
     if (type.startsWith(TIMELINE)) {
       const key = type.slice(TIMELINE.length);
-      msgs.push({ at: ms, parts: [...prefix, [fill(TIMELINE_MESSAGES[key] ?? `{name}: ${key}`, name), "c-yellow"]] });
+      msgs.push({ at: ms, parts: [...prefix, [fill(rankedText("messages", key, code) ?? `{name}: ${key}`, name), "c-yellow"]] });
     } else if (state.showAdvancements !== false) {
-      // "%s이(가) %s 발전 과제를 달성했습니다" -> 이름(흰색) + [제목](초록)
-      const [before, middle, after] = CHAT_FORMATS.task.split("%s");
-      const msg = {
-        at: ms,
-        parts: [...prefix, [before, ""], [name, ""], [middle, ""], [`[${ADVANCEMENT_TITLES[type] ?? type}]`, "c-green"], [after, ""]],
-      };
+      // "{name}이(가) {title} 발전 과제를 달성했습니다" -> 이름(흰색) + [제목](초록). 언어마다 순서가 다를 수 있다
+      const format = gameLang(code).chat.task ?? EN.chat.task;
+      const parts = format.split(/(\{name\}|\{title\})/).map((s) =>
+        s === "{name}" ? [name, ""] : s === "{title}" ? [`[${advTitle(type, code)}]`, "c-green"] : [s, ""]);
+      const msg = { at: ms, parts: [...prefix, ...parts] };
       // 내 기록과 비교: 내가 같은 발전 과제를 달성했으면 뒤에 차이. 내가 나중이면 그때 줄을 다시 띄운다
       const myMs = mine.get(type);
       if (state.showDelta !== false && myMs != null) {
@@ -176,7 +192,7 @@ function chatMessages(state) {
   if (done) {
     const ms = done[0];
     const prefix = times ? [[`[${clock(ms)}] `, "c-gray"]] : [];
-    const msg = { at: ms, parts: [...prefix, [`${name}이(가) 매치를 완주했습니다.`, "c-green"]] };
+    const msg = { at: ms, parts: [...prefix, [say("chat.finished", { name }), "c-green"]] };
     const myMs = mine.get("complete");
     if (state.showDelta !== false && myMs != null) {
       msg.parts.push([` ${fmtDelta(myMs - ms)}`, myMs > ms ? "c-red" : "c-blue"]);
@@ -224,12 +240,19 @@ export class StatusView {
       reached.add(st[1]);
     }
     const idx = cur[1];
+    const code = overlayLang(state);
     const key = `${state.startedAt}:${idx}`;
+    // 언어만 바뀌면 글자만 바꾼다 (단계가 바뀐 것이 아니므로 반짝이지 않음)
+    if (code !== this.lastLang) {
+      this.lastLang = code;
+      this.root.lang = code.replace("_", "-");
+      this.el.stage.textContent = rankedText("stages", STAGES[idx], code);
+    }
     if (key !== this.lastKey) {
       // 단계 색: 네더(1~3) 주황, 엔드 유적~엔드(4~6) 보라, 완료 초록
       this.root.dataset.tone = idx === DONE ? "done" : idx >= 4 ? "end" : idx >= 1 ? "nether" : "start";
       this.el.name.textContent = `${state.player?.nickname ?? "?"} #${state.player?.rank ?? "-"}`;
-      this.el.stage.textContent = STAGES[idx];
+      this.el.stage.textContent = rankedText("stages", STAGES[idx], code);
       this.el.bar.forEach((i, n) => i.classList.toggle("on", reached.has(n)));
       if (this.lastKey) {
         this.root.classList.remove("flash");
@@ -259,7 +282,9 @@ export class ChatView {
     this.root.style.setProperty("--bg-a", state?.bgOpacity ?? 0.5);
     this.root.style.opacity = state?.chatOpacity ?? 1;
     // 재시작하면 줄을 처음부터 다시 쌓도록 startedAt 도 키에 넣는다
-    const key = state && JSON.stringify([state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt,
+    const code = overlayLang(state);
+    this.root.lang = code.replace("_", "-");
+    const key = state && JSON.stringify([code, state.player?.uuid, state.events?.length, state.events?.[0], state.countdown, state.startedAt,
       state.showAdvancements, state.showTimes, state.showDelta, state.mine?.length]);
     if (key !== this.cacheKey) {
       this.cacheKey = key;
