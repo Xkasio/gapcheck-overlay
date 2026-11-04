@@ -188,7 +188,7 @@ const elevated = mcwindow ? mcwindow.isElevated() : true;
 
 /** 관리자 권한으로 다시 실행. UAC 확인 창에서 거절하면 지금 프로그램을 그대로 둔다 */
 function relaunchAsAdmin() {
-  if (!mcwindow) return { ok: false, message: "Windows에서만 지원합니다." };
+  if (!mcwindow) return { ok: false, message: server.t("admin.windowsOnly") };
   const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
   // --relaunched: 새 프로그램이 이 프로그램의 포트가 비기를 잠깐 기다리게
   const params = [app.isPackaged ? "" : `"${app.getAppPath()}"`, "--relaunched"].filter(Boolean).join(" ");
@@ -196,7 +196,7 @@ function relaunchAsAdmin() {
   app.releaseSingleInstanceLock();
   if (!mcwindow.runAsAdmin(exe, params)) {
     app.requestSingleInstanceLock();
-    return { ok: false, message: "관리자 권한 실행이 취소되었습니다." };
+    return { ok: false, message: server.t("admin.cancelled") };
   }
   setTimeout(() => app.quit(), 100);
   return { ok: true };
@@ -239,7 +239,7 @@ function registerKeys() {
 }
 
 function setKeybind({ action, accelerator }) {
-  if (!(action in DEFAULT_KEYS)) return { ok: false, message: "알 수 없는 동작입니다." };
+  if (!(action in DEFAULT_KEYS)) return { ok: false, message: server.t("keys.unknownAction") };
   accelerator = String(accelerator ?? "");
   const before = { ...keybinds };
   // 같은 키를 쓰던 다른 동작은 비운다
@@ -249,7 +249,7 @@ function setKeybind({ action, accelerator }) {
     // 등록 실패면 이전 설정으로 되돌린다
     keybinds = before;
     registerKeys();
-    return { ok: false, keybinds, message: `${accelerator} 키를 등록하지 못했습니다. 다른 프로그램이 쓰고 있거나 지원하지 않는 키입니다.` };
+    return { ok: false, keybinds, message: server.t("keys.registerFailed", { key: accelerator }) };
   }
   fs.writeFileSync(KEYS_FILE, JSON.stringify(keybinds, null, 2));
   return { ok: true, keybinds };
@@ -283,8 +283,8 @@ async function init() {
   // 마인크래프트 로그 파일 고르기
   server.hooks.browseLog = async () => {
     const r = await dialog.showOpenDialog(controlWin, {
-      title: "마인크래프트 latest.log 선택",
-      filters: [{ name: "마인크래프트 로그", extensions: ["log"] }],
+      title: server.t("log.browseTitle"),
+      filters: [{ name: server.t("log.browseFilter"), extensions: ["log"] }],
       properties: ["openFile"],
     });
     return r.canceled ? { ok: true } : { ok: true, path: r.filePaths[0] };
@@ -292,9 +292,9 @@ async function init() {
   // 리플레이 파일 고르기. 마인크래프트 인스턴스의 mcsrranked\replay 에서 시작
   server.hooks.browseReplay = async () => {
     const r = await dialog.showOpenDialog(controlWin, {
-      title: "리플레이 파일 선택 (.rrf)",
+      title: server.t("replay.browseTitle"),
       defaultPath: server.replayDir() ?? app.getPath("documents"),
-      filters: [{ name: "MCSR Ranked 리플레이", extensions: ["rrf", "zip"] }],
+      filters: [{ name: server.t("replay.browseFilter"), extensions: ["rrf", "zip"] }],
       properties: ["openFile"],
     });
     return r.canceled ? { ok: true } : { ok: true, path: r.filePaths[0] };
@@ -304,7 +304,7 @@ async function init() {
       update = { ...update, installing: true }; // 다 받으면 update-downloaded 에서 설치
       return { ok: true };
     }
-    if (update.status !== "ready") return { ok: false, message: "받을 업데이트가 없습니다." };
+    if (update.status !== "ready") return { ok: false, message: server.t("update.none") };
     update = { ...update, installing: true };
     // 설치 화면 없이 조용히 설치하고 다시 실행
     setImmediate(() => autoUpdater.quitAndInstall(true, true));
