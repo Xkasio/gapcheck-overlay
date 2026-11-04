@@ -1,6 +1,7 @@
 // MCSR Ranked 리플레이(.rrf)를 매치 정보로 바꾼다.
 // .rrf 는 zip 파일이고 안에 meta.json(시드, 플레이어, 결과)과 timelines.json(발전 과제·타임라인)이 있다.
 // 결과는 gapcheck.gg 매치와 같은 모양이라 화면·오버레이가 그대로 쓴다.
+// 오류 메시지는 ui-lang.json 의 키로 던지고, 서버가 시스템 언어로 바꾼다.
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
@@ -18,8 +19,8 @@ function readZip(file, wanted) {
   if (eocd < 0) {
     // zip 으로 시작하는데 끝(목록)이 없으면 덜 받아졌거나 손상된 파일
     throw new Error(buf.readUInt32LE(0) === 0x04034b50
-      ? "리플레이 파일이 손상됐거나 덜 받아졌습니다."
-      : "리플레이 파일(.rrf)이 아닙니다.");
+      ? "replay.corrupt"
+      : "replay.notReplay");
   }
   const count = buf.readUInt16LE(eocd + 10);
   let p = buf.readUInt32LE(eocd + 16);
@@ -41,7 +42,7 @@ function readZip(file, wanted) {
 
 function loadReplay(file) {
   const files = readZip(file, ["meta.json", "timelines.json"]);
-  if (!files["meta.json"]) throw new Error("meta.json 이 없습니다. 마인크래프트 랭크드 리플레이 파일인지 확인하세요.");
+  if (!files["meta.json"]) throw new Error("replay.noMeta");
   const m = JSON.parse(files["meta.json"].toString("utf8"));
   const timelines = files["timelines.json"] ? JSON.parse(files["timelines.json"].toString("utf8")) : [];
   return {
@@ -63,4 +64,4 @@ function loadReplay(file) {
   };
 }
 
-module.exports = { loadReplay };
+module.exports = { loadReplay, readZip };
