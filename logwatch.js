@@ -3,6 +3,11 @@
 //   [00:05:40] [Server thread/INFO]: user이(가) [철이 철철 넘쳐] 발전 과제를 달성했습니다
 //   [00:05:36] [main/INFO]: [CHAT] user이(가) [철이 철철 넘쳐] 발전 과제를 달성했습니다   <- 다른 플레이어
 //   [18:26:59] [Server thread/INFO]: user has made the advancement [Stone Age]          <- 영어
+//   (게임에 있는 언어 전부를 game-lang.json 의 형식으로 읽는다)
+//
+// 게임 언어: 인스턴스의 options.txt "lang:ko_kr" 를 보고, 게임에서 언어를 바꿔 파일이 바뀌면 다시 읽는다.
+//   로그에는 언어 코드가 따로 남지 않지만, 발전 과제 줄의 언어가 options.txt 와 다르면 로그 쪽을 따른다
+//   (StandardSettings 처럼 파일과 다른 언어를 적용하는 모드가 있다).
 //
 // 런 시작 감지 (타이머 자동 시작):
 //   [WorldCreator] Match initializing...        새 매치 준비 -> 초기화, 시작 대기, "매치 중"
@@ -22,32 +27,56 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-// 브라우저용 lang-*.js 는 `export const NAME = {JSON};` 형태라 JSON 부분만 읽어 쓴다
-function loadExport(file, name) {
-  const text = fs.readFileSync(path.join(__dirname, "public", file), "utf-8");
-  const m = text.match(new RegExp(`export const ${name} = (\\{[\\s\\S]*?\\n\\});`));
-  return JSON.parse(m[1]);
+const GAME_LANG = require("./public/game-lang.json");
+const EN = GAME_LANG.en_us;
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// 언어별 발전 과제 제목 -> 발전 과제 id (story.smelt_iron 등). 번역이 없는 제목은 게임처럼 영어로 나온다
+const TITLE_TO_TYPE = {};
+// 채팅 형식 -> 정규식과 그 형식을 쓰는 언어들. 글자가 많은(구체적인) 형식부터 맞춰 본다
+const formats = new Map();
+for (const [code, lang] of Object.entries(GAME_LANG)) {
+  TITLE_TO_TYPE[code] = new Map(Object.entries({ ...EN.titles, ...lang.titles }).map(([type, title]) => [title, type]));
+  for (const format of Object.values({ ...EN.chat, ...lang.chat })) {
+    if (!formats.has(format)) {
+      const source = format.split(/(\{name\}|\{title\})/).map((s) => (s === "{name}" ? "(.+?)" : s === "{title}" ? "\\[(.+)\\]" : escapeRe(s))).join("");
+      formats.set(format, { re: new RegExp(`^${source}$`), nameFirst: format.indexOf("{name}") < format.indexOf("{title}"), langs: [] });
+    }
+    if (!formats.get(format).langs.includes(code)) formats.get(format).langs.push(code);
+  }
 }
+const ADVANCEMENT_LINES = [...formats.entries()]
+  .sort(([a], [b]) => b.length - a.length)
+  .map(([, line]) => line);
 
-// 발전 과제 제목(한국어/영어) -> 발전 과제 id (story.smelt_iron 등)
-const TITLE_TO_TYPE = new Map();
-for (const [file, name] of [["lang-ko.js", "ADVANCEMENT_TITLES"], ["lang-en.js", "ADVANCEMENT_TITLES_EN"]]) {
-  for (const [type, title] of Object.entries(loadExport(file, name))) TITLE_TO_TYPE.set(title, type);
-}
+// 상대가 기권한 채팅 줄 (랭크드 모드에 번역이 있는 언어 전부)
+const FORFEIT_LINES = [...new Set(Object.values(GAME_LANG).map((l) => l.ranked?.messages?.forfeit).filter((f) => f?.includes("{name}")))]
+  .map((f) => new RegExp(`^${f.split("{name}").map(escapeRe).join(".+")}$`));
+const isForfeit = (text) => !text.startsWith("<") && (/^.+가 매치에서 기권했습니다\.?$/.test(text) || FORFEIT_LINES.some((re) => re.test(text)));
 
-const ADVANCEMENT_LINE = [
-  /^(.+?)이\(가\) \[(.+)\] (?:발전 과제를 달성했습니다|목표를 달성했습니다|도전을 완료했습니다)$/,
-  /^(.+?) has (?:made the advancement|reached the goal|completed the challenge) \[(.+)\]$/,
-];
-
+// 로그는 UTF-8 이거나 Windows 시스템 인코딩이다. UTF-8 이 아니면 게임 문구를 알아볼 수 있는 인코딩을 찾아 기억해 둔다
 const utf8 = new TextDecoder("utf-8", { fatal: true });
-const cp949 = new TextDecoder("euc-kr");
+const legacy = ["euc-kr", "shift_jis", "gbk", "big5", "windows-1251", "windows-1252", "windows-1250", "windows-1253", "windows-1254", "windows-1255", "windows-1256", "windows-1257", "windows-1258", "windows-874"]
+  .flatMap((name) => {
+    try {
+      return [new TextDecoder(name)];
+    } catch {
+      return []; // 이 런타임에 없는 인코딩
+    }
+  });
 function decodeLine(buf) {
   try {
     return utf8.decode(buf);
-  } catch {
-    return cp949.decode(buf);
+  } catch { /* 시스템 인코딩 */ }
+  for (const [i, decoder] of legacy.entries()) {
+    const text = decoder.decode(buf);
+    const parsed = parseLine(text.replace(/\r$/, ""));
+    if (parsed && (parseAdvancement(parsed.text) || isForfeit(parsed.text))) {
+      legacy.unshift(...legacy.splice(i, 1));
+      return text;
+    }
   }
+  return legacy[0].decode(buf);
 }
 
 /** "[시각] [스레드/INFO]: 내용" -> { thread, text } */
@@ -57,13 +86,28 @@ function parseLine(line) {
   return { thread: m[1], text: m[2].replace(/§./g, "").trim() };
 }
 
-/** 발전 과제 줄이면 { player, title, type } */
-function parseAdvancement(text) {
-  for (const re of ADVANCEMENT_LINE) {
+/** 발전 과제 줄이면 { player, title, type, langs }. langs: 이 줄을 이렇게 쓰는 언어들 (en_us·en_gb 처럼 같은 문구를 쓰는 언어가 있다) */
+function parseAdvancement(text, preferLang) {
+  if (!text.includes("[")) return null;
+  for (const { re, nameFirst, langs } of ADVANCEMENT_LINES) {
     const m = text.match(re);
-    if (m) return { player: m[1], title: m[2], type: TITLE_TO_TYPE.get(m[2]) ?? null };
+    if (!m) continue;
+    const [player, title] = nameFirst ? [m[1], m[2]] : [m[2], m[1]];
+    const matched = langs.filter((code) => TITLE_TO_TYPE[code].has(title));
+    if (!matched.length) continue;
+    const lang = matched.includes(preferLang) ? preferLang : matched[0];
+    return { player, title, type: TITLE_TO_TYPE[lang].get(title), langs: matched };
   }
   return null;
+}
+
+/** options.txt 의 게임 언어 코드 (없으면 null) */
+function readOptionsLang(file) {
+  try {
+    return fs.readFileSync(file, "utf-8").match(/^lang:(\S+)/m)?.[1].toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** 인스턴스 폴더나 로그 파일 경로 -> latest.log 경로 (없으면 null) */
@@ -104,12 +148,15 @@ function detectLogs() {
  * onAdvancement({ player, title, type, mine }) — mine: 이 PC의 플레이어 것인지
  * onInfo({ path, user, error }) — 연결 상태
  * onRun("reset" | "start") — 새 매치 준비 / 런 시작
+ * onGameLang(code | null) — 게임 언어 (ko_kr 등)
  */
 class LogWatcher {
-  constructor({ onAdvancement, onInfo, onRun }) {
+  constructor({ onAdvancement, onInfo, onRun, onGameLang }) {
     this.onAdvancement = onAdvancement;
     this.onInfo = onInfo;
     this.onRun = onRun;
+    this.onGameLang = onGameLang;
+    this.gameLang = null;
     this.armed = false; // 새 월드/매치를 준비 중이라 다음 시작 신호를 기다리는 상태
     this.inMatch = false; // 매치 진행 중 (Match initializing 부터). 이때 월드 리셋은 새 런이 아님
     this.resetting = false; // 월드 리셋 중 (resetting the server ~ leaving the server)
@@ -122,8 +169,9 @@ class LogWatcher {
     this.stop();
     const file = resolveLogPath(input);
     if (!file) {
-      if (input) this.onInfo({ path: input, error: "latest.log 를 찾지 못했습니다." });
+      if (input) this.onInfo({ path: input, error: "log.notFound" });
       else this.onInfo(null);
+      this.setGameLang(null);
       return;
     }
     this.file = file;
@@ -133,12 +181,35 @@ class LogWatcher {
     this.restoreRunState();
     this.onInfo({ path: file, user: this.user });
     this.timer = setInterval(() => this.poll(), 250);
+    // logs\latest.log 와 같은 인스턴스의 options.txt
+    this.optionsFile = path.join(path.dirname(path.dirname(file)), "options.txt");
+    this.optionsMtime = null;
+    this.checkOptions();
+    this.optionsTimer = setInterval(() => this.checkOptions(), 1000);
   }
 
   stop() {
     clearInterval(this.timer);
+    clearInterval(this.optionsTimer);
     this.timer = null;
     this.file = null;
+  }
+
+  setGameLang(code) {
+    if (code === this.gameLang) return;
+    this.gameLang = code;
+    this.onGameLang?.(code);
+  }
+
+  /** options.txt 가 바뀌었으면(게임에서 언어 변경) 게임 언어를 다시 읽는다 */
+  checkOptions() {
+    let mtime = 0;
+    try {
+      mtime = fs.statSync(this.optionsFile).mtimeMs;
+    } catch { /* 없음: 언어를 모르는 상태 */ }
+    if (mtime === this.optionsMtime) return;
+    this.optionsMtime = mtime;
+    this.setGameLang(readOptionsLang(this.optionsFile));
   }
 
   /** 이미 진행 중인 매치 한가운데서 켜도 리셋을 새 런으로 착각하지 않도록, 기존 로그로 매치 상태를 맞춘다 */
@@ -221,8 +292,9 @@ class LogWatcher {
       this.onRun("finish");
     }
     if (this.detectRun(text)) return;
-    const adv = parseAdvancement(text);
+    const adv = parseAdvancement(text, this.gameLang);
     if (!adv) return;
+    if (!adv.langs.includes(this.gameLang)) this.setGameLang(adv.langs[0]);
     // 내 것: 닉네임이 같거나, 닉네임을 모르면 이 PC의 서버 스레드에서 나온 줄
     const mine = this.user ? adv.player === this.user : parsed.thread.startsWith("Server thread");
     if (mine && adv.type === "end.kill_dragon") this.finishing = true;
@@ -267,7 +339,7 @@ class LogWatcher {
     }
     // 기권(나든 상대든)하면 매치가 끝나므로 정지
     // 플레이어 채팅(<닉네임> ...)은 제외
-    if (!text.startsWith("<") && (/^.+가 매치에서 기권했습니다\.?$/.test(text) || / just forfeited the match$/.test(text))) {
+    if (isForfeit(text)) {
       this.inMatch = false;
       this.armed = false;
       this.onRun("forfeit");
