@@ -14,6 +14,7 @@ const path = require("path");
 const { exec } = require("child_process");
 const { LogWatcher, detectLogs, resolveLogPath } = require("./logwatch");
 const { loadReplay } = require("./replay");
+const UI_LANG = require("./public/ui-lang.json");
 
 const BASE_PORT = Number(process.env.PORT) || 5174;
 const PUBLIC = path.join(__dirname, "public");
@@ -38,6 +39,7 @@ const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
@@ -46,15 +48,28 @@ const TYPES = {
 
 // ---------- 공유 상태 ----------
 // { matchId, seedType, player:{uuid,nickname,rank,elo}, events:[[ms,type]], stages, startedAt, countdown, scale,
-//   showAdvancements, keepChat, showTimes, logPath, log:{path,user,error,last}, mine:[[ms,type]] }
+//   showAdvancements, keepChat, showTimes, logPath, log:{path,user,error,last}, mine:[[ms,type]],
+//   uiLang: 시스템 언어(ko/en/ja), overlayLang: 오버레이 언어("game" = 게임 언어와 동일, 아니면 ko_kr 같은 코드), gameLang: 감지한 게임 언어 }
 // mine = 이번 시작 이후 내가(로그로 감지) 달성한 발전 과제와 시각
 let state = {
   events: [], stages: [], startedAt: null, countdown: 3, scale: 2,
   showAdvancements: true, keepChat: false, showTimes: true, showDelta: true, autoStart: true, alwaysOnTop: true, bgOpacity: 0.5, chatOpacity: 1, logPath: "", log: null, mine: [],
+  overlayLang: "game", gameLang: null,
 };
 try {
-  state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null, finishedAt: null, mine: [], log: null, preview: false };
+  state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")), startedAt: null, finishedAt: null, mine: [], log: null, preview: false, gameLang: null };
 } catch { /* 처음 실행 */ }
+// 시스템 언어를 고른 적 없으면 Windows 언어를 따르고, 지원하지 않는 언어면 영어
+if (!UI_LANG[state.uiLang]) {
+  const os = Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0];
+  state.uiLang = UI_LANG[os] ? os : "en";
+}
+
+/** 시스템 언어로 된 문구. 없는 키면 키(또는 오류 메시지) 그대로 */
+function t(key, vars) {
+  const text = UI_LANG[state.uiLang]?.[key] ?? UI_LANG.en[key] ?? key;
+  return vars ? text.replace(/\{(\w+)\}/g, (all, k) => vars[k] ?? all) : text;
+}
 
 const clients = new Set();
 // Electron이 등록하는 동작 (브라우저로만 실행하면 비어 있음)
@@ -66,7 +81,7 @@ function setState(patch) {
   for (const res of clients) res.write(msg);
   fs.mkdirSync(DATA, { recursive: true });
   // 실행 중에만 의미 있는 값은 저장하지 않음
-  const { startedAt, finishedAt, mine, log, preview, ...saved } = state;
+  const { startedAt, finishedAt, mine, log, preview, gameLang, ...saved } = state;
   fs.writeFileSync(STATE_FILE, JSON.stringify(saved), "utf-8");
   for (const fn of listeners) fn(state);
 }
@@ -84,6 +99,7 @@ const control = {
 // ---------- 마인크래프트 로그 ----------
 const watcher = new LogWatcher({
   onInfo: (info) => setState({ log: info && { ...state.log, ...info } }),
+  onGameLang: (gameLang) => setState({ gameLang }),
   // 자동 시작: 매치/월드가 시작되는 순간 타이머 시작 (카운트다운 없이), 새 매치 준비 때 정지
   // 매치 중 월드 리셋: 매치 시계는 계속 가므로 타이머는 두고, 새 월드에서 다시 딸 내 기록만 비운다
   // 내가 완주: 타이머를 그 순간에 멈추고(finishedAt), 완주 시각을 내 기록(mine)에 "complete" 로 남겨 따라가는 플레이어의 완주와 비교한다
@@ -198,7 +214,7 @@ async function handle(req, res) {
     }
     const hook = pathname.match(/^\/api\/app\/(\w+)$/);
     if (hook) {
-      if (!hooks[hook[1]]) return sendJson(res, 404, { ok: false, message: "앱(start.bat / 설치판)에서만 됩니다." });
+      if (!hooks[hook[1]]) return sendJson(res, 404, { ok: false, message: t("app.only") });
       try {
         return sendJson(res, 200, (await hooks[hook[1]](await readJson(req))) ?? { ok: true });
       } catch (e) {
@@ -212,11 +228,11 @@ async function handle(req, res) {
   // 리플레이 파일을 매치 정보로 (gapcheck.gg 매치와 같은 모양)
   if (pathname === "/api/replay") {
     const file = new URL(req.url, "http://x").searchParams.get("path") ?? "";
-    if (!/\.(rrf|zip)$/i.test(file) || !fs.existsSync(file)) return sendJson(res, 404, { error: "리플레이 파일을 찾지 못했습니다." });
+    if (!/\.(rrf|zip)$/i.test(file) || !fs.existsSync(file)) return sendJson(res, 404, { error: t("replay.notFound") });
     try {
       return sendJson(res, 200, { match: loadReplay(file) });
     } catch (e) {
-      return sendJson(res, 400, { error: e.message });
+      return sendJson(res, 400, { error: t(e.message) });
     }
   }
   if (pathname === "/api/app") return sendJson(res, 200, { app: Object.keys(hooks).length > 0, ...(hooks.info?.() ?? {}) });
@@ -260,7 +276,7 @@ async function listenPort({ waitForBasePortMs = 0 } = {}) {
   throw new Error("사용 가능한 포트를 찾지 못했습니다.");
 }
 
-module.exports = { start, control, hooks, onChange, getState: () => state, replayDir };
+module.exports = { start, control, hooks, onChange, getState: () => state, replayDir, t };
 
 if (require.main === module) {
   start().then((port) => {
