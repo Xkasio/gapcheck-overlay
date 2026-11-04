@@ -2,6 +2,7 @@
 //   ?part=status 현황 줄만, ?part=chat 채팅만, 없으면 둘 다 (앱은 두 창으로 따로 띄워 위치를 각각 정함)
 //   OBS: http://localhost:5174/overlay.html?transparent (또는 &part=status / &part=chat 로 따로)
 import { ChatView, StatusView, previewState, subscribeState, viewNow } from "./shared.js";
+import { setUiLang, t } from "./i18n.js";
 
 const params = new URLSearchParams(location.search);
 if (params.has("transparent") || params.has("electron") || navigator.userAgent.includes("OBS/")) {
@@ -14,12 +15,19 @@ if (part === "status") document.querySelector("#chat").remove();
 if (part === "chat") document.querySelector("#status").remove();
 // 두 창 이름이 같으면 OBS 창 캡처 같은 외부 프로그램에서 구분이 안 되므로 나눠 둔다
 document.title = { status: "GapCheck Overlay - 현황", chat: "GapCheck Overlay - 채팅" }[part] ?? "GapCheck Overlay";
-document.querySelector(".edit-hint b").textContent = { status: "현황", chat: "채팅" }[part] ?? "오버레이";
+function renderEditHint() {
+  document.querySelector(".edit-hint b").textContent = t({ status: "edit.status", chat: "edit.chat" }[part] ?? "edit.overlay");
+  document.querySelector(".edit-hint span").textContent = t("edit.hint");
+}
 
 const status = part === "chat" ? null : new StatusView(document.querySelector("#status"));
 const view = part === "status" ? null : new ChatView(document.querySelector("#chat"));
 let state = null;
-subscribeState((s) => (state = s));
+subscribeState((s) => {
+  state = s;
+  setUiLang(s.uiLang);
+  renderEditHint();
+});
 
 // Electron이 F7을 누르면 호출 (위치 옮기기 모드)
 window.setEditMode = (on) => document.body.classList.toggle("edit", on);
