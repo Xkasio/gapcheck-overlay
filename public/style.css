@@ -59,7 +59,7 @@ kbd {
 /* ================= 제어 화면 ================= */
 .app { max-width: 1080px; margin: 0 auto; padding: 0 20px 40px; }
 
-.bar { padding: 22px 0 12px; }
+.bar { padding: 22px 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .bar h1 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
 .bar h1 span { color: var(--muted); font-weight: 500; font-size: 15px; margin-left: 6px; }
 
@@ -140,7 +140,7 @@ kbd {
 .controls { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; }
 .controls label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
 .controls select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; }
-.controls button { flex: 1; align-self: flex-end; }
+.controls button { flex: 1; align-self: flex-end; white-space: nowrap; }
 .primary { background: var(--accent); color: #0b1a10; border: 0; font-weight: 700; }
 .primary:hover { background: #79eba0; }
 .wide { width: 100%; }
@@ -191,7 +191,7 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); tex
 .settings form { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; }
 .settings h2 { margin: 0; font-size: 16px; }
 .settings .row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: var(--muted); }
-.settings select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; }
+.settings select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; max-width: 62%; }
 .settings .range output { width: 48px; }
 .settings-preview { height: 170px; }
 .settings .hint { margin: -6px 0 0; }
@@ -226,6 +226,9 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); tex
   background: rgba(0, 0, 0, var(--bg-a, .5));
   text-shadow: var(--u) var(--u) 0 #3f3f3f;
   white-space: pre-wrap;
+  /* 아랍어·히브리어도 글자 순서는 맞추고, 줄은 게임 채팅처럼 왼쪽에 붙인다 */
+  unicode-bidi: plaintext;
+  text-align: left;
 }
 /* 마인크래프트 색 코드 §a §e §7 과 그 그림자(색의 1/4) */
 .chat .c-green { color: #55ff55; text-shadow: var(--u) var(--u) 0 #153f15; }
