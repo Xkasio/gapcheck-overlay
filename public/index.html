@@ -3,121 +3,128 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GapCheck 오버레이</title>
+  <title data-i18n="doc.title">GapCheck 오버레이</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="app">
   <header class="bar">
-    <h1>GapCheck <span>타임라인 오버레이</span> <small id="version"></small></h1>
+    <h1>GapCheck <span data-i18n="header.subtitle">타임라인 오버레이</span> <small id="version"></small></h1>
+    <button class="icon open-settings" data-i18n="control.settings">⚙ 설정</button>
   </header>
   <div id="update" class="update" hidden></div>
   <div id="admin-warning" class="update warn" hidden>
-    ⚠ <b>관리자 권한으로 실행중이지 않으면 일부 기능이 작동하지 않을 수 있습니다.</b>
-    <button id="relaunch-admin" class="primary">관리자 권한으로 다시 실행</button>
-    <button id="dismiss-admin" class="link">닫기</button>
+    ⚠ <b data-i18n="admin.warning">관리자 권한으로 실행중이지 않으면 일부 기능이 작동하지 않을 수 있습니다.</b>
+    <button id="relaunch-admin" class="primary" data-i18n="admin.relaunch">관리자 권한으로 다시 실행</button>
+    <button id="dismiss-admin" class="link" data-i18n="common.close">닫기</button>
   </div>
 
   <form id="search" class="search">
-    <input id="query" placeholder="매치 ID 또는 https://gapcheck.gg/m/{ID}/ranked" autocomplete="off" autofocus>
-    <button type="submit">검색</button>
-    <button type="button" id="browse-replay" class="secondary app-only" hidden title="리플레이 파일(.rrf)에서 불러오기">찾아보기</button>
+    <input id="query" data-i18n-placeholder="search.placeholder" placeholder="매치 ID 또는 https://gapcheck.gg/m/{ID}/ranked" autocomplete="off" autofocus>
+    <button type="submit" data-i18n="search.submit">검색</button>
+    <button type="button" id="browse-replay" class="secondary app-only" hidden data-i18n="common.browse" data-i18n-title="search.browseTitle" title="리플레이 파일(.rrf)에서 불러오기">찾아보기</button>
   </form>
   <p id="status" class="status">ID를 입력하고 검색하세요.</p>
 
   <main class="grid" id="main" hidden>
     <section class="col">
       <div class="card">
-        <h2>매치 <span id="m-id"></span></h2>
+        <h2><span data-i18n="match.title">매치</span> <span id="m-id"></span></h2>
         <button id="reveal" class="reveal">매치 정보 보기 <span class="muted"></span></button>
         <dl class="facts" id="facts" hidden></dl>
         <div class="seeds" id="seeds"></div>
       </div>
 
       <div class="card">
-        <h2>따라갈 플레이어</h2>
+        <h2 data-i18n="player.title">따라갈 플레이어</h2>
         <div class="players" id="players"></div>
       </div>
 
       <div class="card">
-        <h2>타임라인 <span id="ev-count" class="muted"></span></h2>
-        <label class="check"><input type="checkbox" id="hide-minor" checked> 사소한 이벤트 숨기기</label>
+        <h2><span data-i18n="timeline.title">타임라인</span> <span id="ev-count" class="muted"></span></h2>
+        <label class="check"><input type="checkbox" id="hide-minor" checked> <span data-i18n="timeline.hideMinor">사소한 이벤트 숨기기</span></label>
         <ol class="timeline" id="timeline"></ol>
       </div>
     </section>
 
     <section class="col">
       <div class="card">
-        <h2>오버레이 <span id="timer" class="timer">0:00.0</span></h2>
+        <h2><span data-i18n="overlay.title">오버레이</span> <span id="timer" class="timer">0:00.0</span></h2>
         <div class="preview"><div id="preview-status"></div><div id="preview-chat"></div></div>
         <div class="toggles">
-          <label class="check"><input type="checkbox" id="show-adv"> 채팅에 발전 과제 표시</label>
-          <label class="check"><input type="checkbox" id="keep-chat"> 채팅 유지</label>
-          <label class="check"><input type="checkbox" id="show-times"> 타임라인 표시</label>
-          <label class="check"><input type="checkbox" id="show-delta"> 내 기록과 비교</label>
-          <label class="check app-only" hidden><input type="checkbox" id="always-on-top"> 항상 위에 표시</label>
+          <label class="check"><input type="checkbox" id="show-adv"> <span data-i18n="toggle.showAdv">채팅에 발전 과제 표시</span></label>
+          <label class="check"><input type="checkbox" id="keep-chat"> <span data-i18n="toggle.keepChat">채팅 유지</span></label>
+          <label class="check"><input type="checkbox" id="show-times"> <span data-i18n="toggle.showTimes">타임라인 표시</span></label>
+          <label class="check"><input type="checkbox" id="show-delta"> <span data-i18n="toggle.showDelta">내 기록과 비교</span></label>
+          <label class="check app-only" hidden><input type="checkbox" id="always-on-top"> <span data-i18n="toggle.alwaysOnTop">항상 위에 표시</span></label>
         </div>
 
         <div class="auto-start-row">
-          <label class="check"><input type="checkbox" id="auto-start"> 자동 시작</label>
-          <span class="caution" tabindex="0" title="자동 시작을 켜 두면 비공개 방이 아닌 다른 월드나 랭크드 매치에 들어가도 타이머가 자동으로 시작됩니다.&#10;오버레이를 쓰는 비공개 방 매치에서만 켜 두세요.">(!)</span>
+          <label class="check"><input type="checkbox" id="auto-start"> <span data-i18n="toggle.autoStart">자동 시작</span></label>
+          <span class="caution" tabindex="0" data-i18n-title="toggle.autoStartCaution" title="자동 시작을 켜 두면 비공개 방이 아닌 다른 월드나 랭크드 매치에 들어가도 타이머가 자동으로 시작됩니다.&#10;오버레이를 쓰는 비공개 방 매치에서만 켜 두세요.">(!)</span>
         </div>
 
         <div class="controls">
           <button id="start" class="primary">▶ 시작</button>
-          <button id="stop">■ 정지</button>
-          <button id="open-settings" class="icon" title="설정">⚙ 설정</button>
+          <button id="stop" data-i18n="control.stop">■ 정지</button>
+          <button class="icon open-settings" data-i18n="control.settings">⚙ 설정</button>
         </div>
-        <p class="hint browser-only">
+        <p class="hint browser-only" data-i18n="control.browserHint">
           브라우저로 열린 상태입니다. 게임 위에 뜨는 투명 오버레이와 단축키는 GapCheck Overlay 앱에서 사용할 수 있습니다.
         </p>
       </div>
 
       <div class="card">
-        <h2>마인크래프트 로그 <span class="muted">내 기록 비교용</span></h2>
+        <h2><span data-i18n="log.title">마인크래프트 로그</span> <span class="muted" data-i18n="log.subtitle">내 기록 비교용</span></h2>
         <div class="logrow">
-          <input id="log-path" placeholder="인스턴스 폴더 또는 logs\latest.log 경로" autocomplete="off">
-          <button id="log-browse" class="app-only" hidden>찾아보기</button>
-          <button id="log-connect" class="primary">연결</button>
+          <input id="log-path" data-i18n-placeholder="log.placeholder" placeholder="인스턴스 폴더 또는 logs\latest.log 경로" autocomplete="off">
+          <button id="log-browse" class="app-only" hidden data-i18n="common.browse">찾아보기</button>
+          <button id="log-connect" class="primary" data-i18n="log.connect">연결</button>
         </div>
         <div class="logrow">
-          <select id="log-detected"><option value="">자동으로 찾은 로그…</option></select>
-          <button id="log-detect">다시 찾기</button>
+          <select id="log-detected"><option value="" data-i18n="log.detectedPrompt">자동으로 찾은 로그…</option></select>
+          <button id="log-detect" data-i18n="log.detectAgain">다시 찾기</button>
         </div>
         <p class="log-status" id="log-status">연결 안 됨</p>
       </div>
 
       <div class="card app-only" hidden>
-        <h2>단축키 <span class="muted"></span></h2>
+        <h2 data-i18n="keys.title">단축키</h2>
         <ul class="keybinds" id="keybinds"></ul>
         <p class="hint">
-          글자·숫자·스페이스처럼 게임에서 쓰는 키를 지정하면 게임에서 그 키가 안 먹힙니다.
-          <kbd>F</kbd>키나 <kbd>Ctrl</kbd>/<kbd>Alt</kbd>/<kbd>Shift</kbd> 조합을 추천합니다.
-          <button id="reset-keys" class="link">기본값으로</button>
+          <span data-i18n-html="keys.hint">글자·숫자·스페이스처럼 게임에서 쓰는 키를 지정하면 게임에서 그 키가 안 먹힙니다.
+          <kbd>F</kbd>키나 <kbd>Ctrl</kbd>/<kbd>Alt</kbd>/<kbd>Shift</kbd> 조합을 추천합니다.</span>
+          <button id="reset-keys" class="link" data-i18n="keys.reset">기본값으로</button>
         </p>
       </div>
     </section>
   </main>
 
-  <footer class="foot">비공식 팬 메이드 도구입니다.</footer>
+  <footer class="foot" data-i18n="footer.text">비공식 팬 메이드 도구입니다.</footer>
 
   <dialog id="settings" class="settings">
     <form method="dialog">
-      <h2>설정</h2>
+      <h2 data-i18n="settings.title">설정</h2>
       <div class="preview settings-preview"><div id="set-status"></div><div id="set-chat"></div></div>
-      <p class="hint app-only" hidden>설정 창을 연 동안 게임 위 오버레이에도 같은 예시가 실제 크기로 표시됩니다.</p>
-      <label class="row">카운트다운
-        <select id="countdown">
-          <option value="0">없음</option>
-          <option value="3">3초</option>
-          <option value="5">5초</option>
-          <option value="10">10초</option>
+      <p class="hint app-only" hidden data-i18n="settings.previewHint">설정 창을 연 동안 게임 위 오버레이에도 같은 예시가 실제 크기로 표시됩니다.</p>
+      <label class="row"><span data-i18n="settings.systemLang">시스템 언어</span>
+        <select id="ui-lang">
+          <option value="ko">한국어</option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
         </select>
       </label>
-      <label class="range">채팅 크기 <input type="range" id="scale" min="1" max="4" step="0.25"><output id="scale-out"></output></label>
-      <label class="range">배경 투명도 <input type="range" id="bg-opacity" min="0" max="1" step="0.05"><output id="bg-opacity-out"></output></label>
-      <label class="range">매치 로그 투명도 <input type="range" id="chat-opacity" min="0.2" max="1" step="0.05"><output id="chat-opacity-out"></output></label>
-      <button type="button" id="edit-overlay" class="wide app-only" hidden>✥ 오버레이 위치 옮기기 <kbd data-key="editOverlay">F7</kbd></button>
-      <div class="settings-foot"><button value="close" class="primary">닫기</button></div>
+      <label class="row"><span data-i18n="settings.overlayLang">오버레이 언어</span>
+        <select id="overlay-lang"></select>
+      </label>
+      <p class="hint" id="overlay-lang-hint" data-i18n="settings.overlayLangFallback" hidden></p>
+      <label class="row"><span data-i18n="settings.countdown">카운트다운</span>
+        <select id="countdown"></select>
+      </label>
+      <label class="range"><span data-i18n="settings.scale">채팅 크기</span> <input type="range" id="scale" min="1" max="4" step="0.25"><output id="scale-out"></output></label>
+      <label class="range"><span data-i18n="settings.bgOpacity">배경 투명도</span> <input type="range" id="bg-opacity" min="0" max="1" step="0.05"><output id="bg-opacity-out"></output></label>
+      <label class="range"><span data-i18n="settings.chatOpacity">매치 로그 투명도</span> <input type="range" id="chat-opacity" min="0.2" max="1" step="0.05"><output id="chat-opacity-out"></output></label>
+      <button type="button" id="edit-overlay" class="wide app-only" hidden><span data-i18n="settings.moveOverlay">✥ 오버레이 위치 옮기기</span> <kbd data-key="editOverlay">F7</kbd></button>
+      <div class="settings-foot"><button value="close" class="primary" data-i18n="common.close">닫기</button></div>
     </form>
   </dialog>
 
