@@ -1,7 +1,8 @@
 import {
-  BASTION, BASTION_TYPES, ChatView, SEED_TYPES, StatusView, buildEvents, buildStages, eventKind, eventName,
-  fetchMatch, fmt, parseId, postJson, previewState, subscribeState, viewNow, winnerUuid,
+  ChatView, StatusView, bastionLabel, bastionTypeName, buildEvents, buildStages, eventKind, eventName,
+  fetchMatch, fmt, parseId, postJson, previewState, seedTypeName, subscribeState, viewNow, winnerUuid,
 } from "./shared.js";
+import { GAME_LANG, getUiLang, setUiLang, t } from "./i18n.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -18,6 +19,9 @@ const settingsChat = new ChatView($("#set-chat"), 0.5);
 let first = true;
 subscribeState((s) => {
   state = s;
+  if (setUiLang(s.uiLang) || first) renderLanguage();
+  renderOverlayLang(s);
+  $("#ui-lang").value = getUiLang();
   $("#countdown").value = String(s.countdown ?? 3);
   $("#scale").value = s.scale ?? 2;
   $("#scale-out").textContent = `${s.scale ?? 2}x`;
@@ -46,6 +50,50 @@ subscribeState((s) => {
   }
 });
 
+// ---------- 언어 ----------
+/** 시스템 언어가 바뀌면 코드로 그린 글자를 다시 그린다 (data-i18n 표시는 setUiLang 이 바꿈) */
+function renderLanguage() {
+  renderCountdownOptions();
+  renderStatus();
+  setKeybinds(keybinds);
+  detectLogs();
+  renderUpdate(lastUpdate);
+  if (match) {
+    renderMatch();
+    applySelection(true);
+  }
+}
+
+function renderCountdownOptions() {
+  $("#countdown").innerHTML = [0, 3, 5, 10]
+    .map((n) => `<option value="${n}">${esc(n ? t("settings.seconds", { n }) : t("settings.countdownNone"))}</option>`)
+    .join("");
+}
+
+const langName = (code) => {
+  const l = GAME_LANG[code];
+  return l ? `${l.name ?? code}${l.region ? ` (${l.region})` : ""}` : code;
+};
+// 게임에 있는 언어 전부. 게임 언어와 동일이 맨 위
+const OVERLAY_LANGS = Object.keys(GAME_LANG).sort((a, b) => langName(a).localeCompare(langName(b)));
+let overlayLangKey = null;
+
+function renderOverlayLang(s) {
+  const chosen = s.overlayLang ?? "game";
+  const key = `${getUiLang()}:${s.gameLang}`;
+  if (key !== overlayLangKey) {
+    overlayLangKey = key;
+    const current = s.gameLang ? langName(s.gameLang) : t("settings.overlayLangUnknown");
+    $("#overlay-lang").innerHTML = `<option value="game">${esc(t("settings.overlayLangGame", { lang: current }))}</option>` +
+      OVERLAY_LANGS.map((code) => `<option value="${code}">${esc(langName(code))}</option>`).join("");
+  }
+  $("#overlay-lang").value = chosen;
+  $("#overlay-lang-hint").hidden = chosen !== "game" || !!s.gameLang;
+}
+
+$("#ui-lang").addEventListener("change", (e) => postJson("/api/state", { uiLang: e.target.value }));
+$("#overlay-lang").addEventListener("change", (e) => postJson("/api/state", { overlayLang: e.target.value }));
+
 // ---------- 검색 ----------
 $("#search").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -56,39 +104,41 @@ let replayPath = null; // 리플레이 파일에서 불러왔으면 그 경로 (
 
 async function search(text) {
   const id = parseId(text);
-  if (!id) return setStatus("올바른 ID나 gapcheck.gg/m/ID 주소를 입력하세요.", true);
-  setStatus(`${id} 불러오는 중...`);
+  if (!id) return setStatus("search.invalid", null, true);
+  setStatus("search.loading", { name: id });
   let m;
   try {
     m = await fetchMatch(id);
   } catch (err) {
-    return setStatus(`${id}: ${err.message}`, true);
+    return setStatus("search.failed", { name: id, message: err.message }, true);
   }
   replayPath = null;
   history.replaceState(null, "", `?id=${id}`);
-  showMatch(m, `매치 ${id} 불러옴`);
+  showMatch(m, "search.loadedMatch", { id });
 }
 
 /** 리플레이 파일(.rrf)에서 매치 불러오기 */
 async function openReplay(file) {
   const name = file.split(/[\\/]/).pop();
-  setStatus(`${name} 불러오는 중...`);
+  setStatus("search.loading", { name });
   const r = await fetch(`/api/replay?path=${encodeURIComponent(file)}`);
   const body = await r.json();
-  if (!r.ok) return setStatus(`${name}: ${body.error}`, true);
+  if (!r.ok) return setStatus("search.failed", { name, message: body.error }, true);
   replayPath = file;
   $("#query").value = body.match.matchId ?? "";
   history.replaceState(null, "", location.pathname);
-  showMatch(body.match, `리플레이 ${name} 불러옴 (매치 #${body.match.matchId})`);
+  showMatch(body.match, "search.loadedReplay", { name, id: body.match.matchId });
 }
 
-function showMatch(m, message) {
+function showMatch(m, message, vars) {
   match = m;
-  setStatus(message);
+  setStatus(message, vars);
   // 같은 매치를 다시 불러온 경우 고른 플레이어 유지
   const same = state?.matchId === match.matchId && match.players.some((p) => p.uuid === state.player?.uuid);
   playerUuid = same ? state.player.uuid : winnerUuid(match);
   renderMatch();
+  // 스포일러 방지: 매치를 새로 불러올 때마다 다시 숨김
+  showFacts(false);
   applySelection(same);
 }
 
@@ -97,9 +147,17 @@ $("#browse-replay").addEventListener("click", async () => {
   if (r.ok && r.path) openReplay(r.path);
 });
 
-function setStatus(text, error = false) {
-  $("#status").textContent = text;
-  $("#status").classList.toggle("error", error);
+// 지금 상태 줄. 시스템 언어를 바꾸면 다시 쓴다
+let status = { key: "search.prompt", vars: null, error: false };
+
+function setStatus(key, vars = null, error = false) {
+  status = { key, vars, error };
+  renderStatus();
+}
+
+function renderStatus() {
+  $("#status").textContent = t(status.key, status.vars);
+  $("#status").classList.toggle("error", status.error);
 }
 
 // ---------- 매치 정보 ----------
@@ -108,22 +166,21 @@ function renderMatch() {
   $("#main").hidden = false;
   $("#m-id").textContent = `#${m.matchId}`;
   const facts = [
-    ["시드 유형", SEED_TYPES[m.seedType] ?? m.seedType ?? "-"],
-    [BASTION, BASTION_TYPES[m.bastionType] ?? m.bastionType ?? "-"],
-    ["기록", fmt(m.finalTime ?? 0, 3)],
-    ["날짜", (m.date ?? "").slice(0, 10)],
-    ["엔드 타워", (m.endTowers ?? []).join(" · ") || "-"],
+    [t("match.seedType"), m.seedType ? seedTypeName(m.seedType) : "-"],
+    [bastionLabel(), m.bastionType ? bastionTypeName(m.bastionType) : "-"],
+    [t("match.record"), fmt(m.finalTime ?? 0, 3)],
+    [t("match.date"), (m.date ?? "").slice(0, 10)],
+    [t("match.endTowers"), (m.endTowers ?? []).join(" · ") || "-"],
   ];
-  $("#facts").innerHTML = facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("");
-  // 스포일러 방지: 매치를 새로 불러올 때마다 다시 숨김
-  showFacts(false);
+  $("#facts").innerHTML = facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+  showFacts(!$("#facts").hidden);
 
   // gapcheck.gg와 같은 구성: 오버월드/엔드(같은 시드), 네더, RNG(+ 일치율)
   const rng = m.rngSeed ?? {};
-  const rngPct = rng.total ? ` <em class="pct">${Math.round((rng.matches / rng.total) * 100)}% 일치</em>` : "";
-  const seeds = [["오버월드 / 엔드", m.overworldSeed, ""], ["네더", m.netherSeed, ""], ["RNG", rng.seed ?? "", rngPct]];
+  const rngPct = rng.total ? ` <em class="pct">${esc(t("seed.match", { pct: Math.round((rng.matches / rng.total) * 100) }))}</em>` : "";
+  const seeds = [[t("seed.overworldEnd"), m.overworldSeed, ""], [t("seed.nether"), m.netherSeed, ""], ["RNG", rng.seed ?? "", rngPct]];
   $("#seeds").innerHTML = seeds
-    .map(([k, v, extra]) => `<button class="seed" data-seed="${esc(v)}" title="클릭해서 복사"><span>${k}</span><code>${esc(v)}</code>${extra}</button>`)
+    .map(([k, v, extra]) => `<button class="seed" data-seed="${esc(v)}" title="${esc(t("seed.copyTitle"))}"><span>${esc(k)}</span><code>${esc(v)}</code>${extra}</button>`)
     .join("");
 
   const winner = m.result?.uuid;
@@ -131,8 +188,8 @@ function renderMatch() {
     .map((p) => `
       <button class="player" data-uuid="${p.uuid}">
         <img src="https://mc-heads.net/avatar/${p.uuid}/40" alt="" width="40" height="40">
-        <span class="p-name">${esc(p.nickname)}${p.uuid === winner ? ' <em class="win">승리</em>' : ""}</span>
-        <span class="p-rank">랭크 <b>#${p.eloRank ?? "-"}</b></span>
+        <span class="p-name">${esc(p.nickname)}${p.uuid === winner ? ` <em class="win">${esc(t("player.win"))}</em>` : ""}</span>
+        <span class="p-rank">${esc(t("player.rank"))} <b>#${p.eloRank ?? "-"}</b></span>
         <span class="p-elo">Elo <b>${p.elo ?? "-"}</b></span>
       </button>`)
     .join("");
@@ -140,9 +197,7 @@ function renderMatch() {
 
 function showFacts(on) {
   $("#facts").hidden = !on;
-  $("#reveal").innerHTML = on
-    ? "매치 정보 숨기기"
-    : "매치 정보 보기";
+  $("#reveal").textContent = t(on ? "match.hide" : "match.show");
 }
 $("#reveal").addEventListener("click", () => showFacts($("#facts").hidden));
 
@@ -151,9 +206,9 @@ $("#seeds").addEventListener("click", async (e) => {
   if (!btn) return;
   try {
     await navigator.clipboard.writeText(btn.dataset.seed);
-    setStatus(`${btn.querySelector("span").textContent} 시드를 복사했습니다.`);
+    setStatus("seed.copied", { name: btn.querySelector("span").textContent });
   } catch {
-    setStatus("클립보드 복사가 막혀 있습니다. 시드를 직접 선택해 복사하세요.", true);
+    setStatus("seed.copyBlocked", null, true);
   }
 });
 
@@ -182,7 +237,7 @@ function applySelection(keepRun) {
   };
   if (!keepRun) patch.startedAt = null;
   postJson("/api/state", patch);
-  $("#ev-count").textContent = `${events.length}개`;
+  $("#ev-count").textContent = t("timeline.count", { n: events.length });
   $("#timeline").innerHTML = events
     .map(([ms, type]) => `<li class="k-${eventKind(type)}" data-ms="${ms}"><time>${fmt(ms)}</time>${esc(eventName(type))}</li>`)
     .join("");
@@ -196,10 +251,10 @@ $("#scale").addEventListener("input", (e) => postJson("/api/state", { scale: Num
 $("#bg-opacity").addEventListener("input", (e) => postJson("/api/state", { bgOpacity: Number(e.target.value) }));
 $("#chat-opacity").addEventListener("input", (e) => postJson("/api/state", { chatOpacity: Number(e.target.value) }));
 // 설정 창: 여는 동안 오버레이에 예시 표시, 닫으면(닫기 버튼·Esc) 원래대로
-$("#open-settings").addEventListener("click", () => {
+document.querySelectorAll(".open-settings").forEach((btn) => btn.addEventListener("click", () => {
   $("#settings").showModal();
   postJson("/api/state", { preview: true });
-});
+}));
 $("#settings").addEventListener("close", () => postJson("/api/state", { preview: false }));
 $("#show-adv").addEventListener("change", (e) => postJson("/api/state", { showAdvancements: e.target.checked }));
 $("#keep-chat").addEventListener("change", (e) => postJson("/api/state", { keepChat: e.target.checked }));
@@ -215,9 +270,9 @@ function renderLog(s) {
   const el = $("#log-status");
   el.classList.toggle("ok", !!log && !log.error);
   el.classList.toggle("error", !!log?.error);
-  if (!log) return void (el.textContent = "연결 안 됨");
-  if (log.error) return void (el.textContent = `⚠ ${log.error}`);
-  el.textContent = "● 연결됨";
+  if (!log) return void (el.textContent = t("log.disconnected"));
+  if (log.error) return void (el.textContent = `⚠ ${t(log.error)}`);
+  el.textContent = t("log.connected");
 }
 
 // ...\instances\New_Instance2\.minecraft\logs\latest.log -> New_Instance2
@@ -225,8 +280,8 @@ const instanceName = (p) => p.replace(/^.*[\\/]instances[\\/]/, "").replace(/[\\
 
 async function detectLogs() {
   const { logs } = await (await fetch("/api/logs/detect")).json();
-  $("#log-detected").innerHTML = `<option value="">${logs.length ? "자동으로 찾은 로그 선택…" : "찾은 로그 없음"}</option>` +
-    logs.map((l) => `<option value="${esc(l.path)}">${esc(instanceName(l.path))} — ${new Date(l.mtime).toLocaleString()}</option>`).join("");
+  $("#log-detected").innerHTML = `<option value="">${esc(t(logs.length ? "log.detectedSelect" : "log.detectedNone"))}</option>` +
+    logs.map((l) => `<option value="${esc(l.path)}">${esc(instanceName(l.path))} — ${new Date(l.mtime).toLocaleString(getUiLang())}</option>`).join("");
   return logs;
 }
 detectLogs().then((logs) => {
@@ -260,13 +315,15 @@ refreshAppInfo();
 setInterval(refreshAppInfo, 10000);
 
 // 새 버전이 있으면 한 줄 안내 + 버튼. 버튼: 설치판은 바로 설치(받는 중이면 다 받은 뒤), 포터블은 다운로드 페이지
+let lastUpdate = null;
 function renderUpdate(u) {
+  lastUpdate = u;
   const el = $("#update");
   const has = ["downloading", "ready", "available"].includes(u?.status);
   el.hidden = !has;
   if (!has) return;
-  const label = u.installing ? "업데이트 중…" : "최신버전으로 업데이트";
-  const html = `최신버전이 있습니다. <button id="install-update" class="primary"${u.installing ? " disabled" : ""}>${label}</button>`;
+  const label = t(u.installing ? "update.installing" : "update.install");
+  const html = `${esc(t("update.available"))} <button id="install-update" class="primary"${u.installing ? " disabled" : ""}>${label}</button>`;
   if (el.innerHTML !== html) el.innerHTML = html;
   el.dataset.url = u.url ?? "";
 }
@@ -277,7 +334,7 @@ function renderAdmin(info) {
   $("#admin-warning").hidden = !info.app || info.admin !== false || adminDismissed;
 }
 $("#relaunch-admin").addEventListener("click", async () => {
-  setStatus("관리자 권한으로 다시 실행합니다. Windows 확인 창에서 '예'를 누르세요.");
+  setStatus("admin.relaunching");
   await appAction("relaunchAsAdmin");
 });
 $("#dismiss-admin").addEventListener("click", () => {
@@ -294,36 +351,30 @@ $("#update").addEventListener("click", (e) => {
 
 async function appAction(name, body) {
   const r = await (await postJson(`/api/app/${name}`, body)).json();
-  if (!r.ok) setStatus(r.message ?? "실패했습니다.", true);
+  if (!r.ok) setStatus(r.message ?? "common.failed", null, true);
   return r;
 }
 
 $("#edit-overlay").addEventListener("click", async () => {
   const r = await appAction("editOverlay");
-  if (r.ok) setStatus(r.editing ? "현황 창과 채팅 창을 각각 드래그해서 옮긴 뒤 버튼이나 단축키를 다시 누르세요." : "현황·채팅 위치를 고정했습니다.");
+  if (r.ok) setStatus(r.editing ? "move.editing" : "move.locked");
 });
 
 // ---------- 단축키 지정 ----------
-const KEY_ACTIONS = [
-  ["start", "시작 / 재시작"],
-  ["stop", "정지"],
-  ["editOverlay", "오버레이 위치 옮기기"],
-  ["toggleAdvancements", "채팅 발전 과제 켜기/끄기"],
-  ["toggleKeepChat", "채팅 유지 켜기/끄기"],
-];
+const KEY_ACTIONS = ["start", "stop", "editOverlay", "toggleAdvancements", "toggleKeepChat"];
 let capturing = null; // 키 입력을 기다리는 동작 이름
 
 function setKeybinds(k) {
   keybinds = k;
-  $("#keybinds").innerHTML = KEY_ACTIONS.map(([action, label]) => `
+  $("#keybinds").innerHTML = KEY_ACTIONS.map((action) => `
     <li data-action="${action}" class="${capturing === action ? "capturing" : ""}">
-      <span>${label}</span>
-      <kbd>${capturing === action ? "키를 누르세요… (Esc 취소)" : esc(k[action] || "없음")}</kbd>
-      <button data-op="set">변경</button>
-      <button data-op="clear" title="단축키 없애기">✕</button>
+      <span>${esc(t(`keys.${action}`))}</span>
+      <kbd>${esc(capturing === action ? t("keys.capture") : k[action] || t("common.none"))}</kbd>
+      <button data-op="set">${esc(t("keys.change"))}</button>
+      <button data-op="clear" title="${esc(t("keys.clearTitle"))}">✕</button>
     </li>`).join("");
   document.querySelectorAll("kbd[data-key]").forEach((el) => {
-    el.textContent = k[el.dataset.key] || "없음";
+    el.textContent = k[el.dataset.key] || t("common.none");
   });
 }
 
@@ -342,7 +393,7 @@ $("#reset-keys").addEventListener("click", async () => {
   const r = await appAction("resetKeybinds");
   if (r.ok) {
     setKeybinds(r.keybinds);
-    setStatus("단축키를 기본값으로 되돌렸습니다.");
+    setStatus("keys.resetDone");
   }
 });
 
@@ -351,9 +402,9 @@ async function saveKeybind(action, accelerator) {
   const r = await appAction("setKeybind", { action, accelerator });
   if (r.keybinds) setKeybinds(r.keybinds);
   if (!r.ok) return;
-  const label = KEY_ACTIONS.find(([a]) => a === action)[1];
+  const label = t(`keys.${action}`);
   const gameKey = accelerator && !/^(Ctrl|Alt|Shift)\+|^F\d+$|^num/.test(accelerator);
-  setStatus(!accelerator ? `${label}: 단축키 없음` : `${label}: ${accelerator}${gameKey ? " (게임에서 이 키가 안 먹히게 됩니다)" : ""}`, gameKey);
+  setStatus(!accelerator ? "keys.cleared" : gameKey ? "keys.setGameKey" : "keys.set", { label, key: accelerator }, gameKey);
 }
 
 /** KeyboardEvent -> Electron 단축키 문자열 (예: "Ctrl+Shift+F8"). 수식키만 눌렀으면 null, 지원 안 하면 undefined */
@@ -392,7 +443,7 @@ document.addEventListener("keydown", (e) => {
   }
   const acc = toAccelerator(e);
   if (acc === null) return; // 수식키만 누른 상태: 다음 키 기다림
-  if (acc === undefined) return setStatus("이 키는 단축키로 쓸 수 없습니다. 다른 키를 누르세요.", true);
+  if (acc === undefined) return setStatus("keys.unsupported", null, true);
   saveKeybind(action, acc);
 }, true);
 
@@ -407,10 +458,10 @@ function tick() {
     settingsChat.render(sample);
   }
   const running = state?.startedAt != null;
-  const t = running ? now - state.startedAt : 0;
-  $("#start").textContent = running ? "↻ 재시작" : "▶ 시작";
-  $("#timer").textContent = fmt(t);
-  for (const li of $("#timeline").children) li.classList.toggle("passed", running && Number(li.dataset.ms) <= t);
+  const elapsed = running ? now - state.startedAt : 0;
+  $("#start").textContent = t(running ? "control.restart" : "control.start");
+  $("#timer").textContent = fmt(elapsed);
+  for (const li of $("#timeline").children) li.classList.toggle("passed", running && Number(li.dataset.ms) <= elapsed);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
